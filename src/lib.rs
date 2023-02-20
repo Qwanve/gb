@@ -63,6 +63,10 @@ impl Core<'_> {
             }
             0x12 => Instruction::StoreAAtDE,
             0x1C => Instruction::IncrementE,
+            0x20 => {
+                let offset = self.mmu.read(address + 1) as i8;
+                Instruction::JumpRelativeIfNotZero { offset }
+            }
             0x21 => {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadHLFrom16Imm { new_value }
@@ -87,16 +91,21 @@ impl Core<'_> {
             Instruction::LoadCFrom8Imm { new_value } => {
                 *self.registers.bc.split_mut().1 = new_value
             }
+            Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
+            Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
             Instruction::IncrementE => {
-                *self.registers.de.split_mut().0 += 1;
-                self.registers.set_zero(*self.registers.de.split().0 == 0);
+                *self.registers.de.split_mut().1 += 1;
+                self.registers.set_zero(*self.registers.de.split().1 == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
                 self.registers
-                    .set_half_carry(self.registers.de.split().0 & 0x0F == 0);
+                    .set_half_carry(self.registers.de.split().1 & 0x0F == 0);
             }
-            Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
-            Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
+            Instruction::JumpRelativeIfNotZero { offset } => {
+                if !self.registers.zero() {
+                    self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
+                }
+            }
             Instruction::LoadHLFrom16Imm { new_value } => *self.registers.hl.get_mut() = new_value,
             Instruction::LoadAFromHLAndInc => {
                 let byte = self.mmu.read(*self.registers.hl.get());
