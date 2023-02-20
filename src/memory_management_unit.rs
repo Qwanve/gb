@@ -178,7 +178,7 @@ impl MemoryManagementUnit<'_> {
             0x4000..=0x7FFF => todo!("Write to cartridge"),
             0x8000..=0x9FFF => todo!("Write to VRAM"),
             0xA000..=0xBFFF => todo!("Write to External Ram"),
-            0xC000..=0xCFFF => todo!("Write to WRAM"),
+            0xC000..=0xCFFF => self.wram.bank_zero[(address - 0xC000) as usize] = value,
             0xD000..=0xDFFF => todo!("Write to WRAM"),
             0xE000..=0xFDFF => todo!("Write to Echo RAM"),
             0xFE00..=0xFE9F => todo!("Write to Sprite Attribute Table"),
