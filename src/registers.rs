@@ -51,6 +51,11 @@ impl Registers {
         self.f[0]
     }
 
+    ///Set the zero flag
+    pub fn set_zero(&mut self, value: bool) {
+        self.f.set(0, value)
+    }
+
     ///Returns a copy of the subtraction flag
     ///
     ///This is set when the last operation was a subtraction
@@ -58,6 +63,11 @@ impl Registers {
     #[must_use]
     pub fn subtraction(&self) -> bool {
         self.f[1]
+    }
+
+    ///Set the subtraction flag
+    pub fn set_subtraction(&mut self, value: bool) {
+        self.f.set(1, value)
     }
 
     ///Returns a copy of the half carry flag
@@ -69,12 +79,22 @@ impl Registers {
         self.f[2]
     }
 
+    ///Set the half carry flag
+    pub fn set_half_carry(&mut self, value: bool) {
+        self.f.set(2, value)
+    }
+
     ///Returns a copy of the carry flag
     ///
     ///This is set when the 8th bit overflows in 8-bit operations or the 16th in 16-bit operations
     #[must_use]
     pub fn carry(&self) -> bool {
         self.f[3]
+    }
+
+    ///Set the carry flag
+    pub fn set_carry(&mut self, value: bool) {
+        self.f.set(3, value)
     }
 }
 
