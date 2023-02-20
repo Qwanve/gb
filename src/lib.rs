@@ -53,6 +53,7 @@ impl Core<'_> {
         let byte = self.mmu.read(address);
         match byte {
             0x00 => Instruction::Noop,
+            0x0D => Instruction::DecrementC,
             0x0E => {
                 let new_value = self.mmu.read(address + 1);
                 Instruction::LoadCFrom8Imm { new_value }
@@ -89,6 +90,15 @@ impl Core<'_> {
         self.registers.pc += instruction.size();
         match instruction {
             Instruction::Noop => {}
+            Instruction::DecrementC => {
+                let c = self.registers.bc.split_mut().1;
+                *c = c.wrapping_sub(1);
+                self.registers.set_zero(*self.registers.bc.split().1 == 0);
+                self.registers.set_subtraction(true);
+                //TODO: Verify half carry register
+                self.registers
+                    .set_half_carry(self.registers.bc.split().1 & 0x0F == 0x0F);
+            }
             Instruction::LoadCFrom8Imm { new_value } => {
                 *self.registers.bc.split_mut().1 = new_value
             }

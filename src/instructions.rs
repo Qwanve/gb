@@ -3,6 +3,7 @@ use std::fmt::Display;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
     Noop,
+    DecrementC,
     LoadCFrom8Imm { new_value: u8 },
     LoadDEFrom16Imm { new_value: u16 },
     StoreAAtDE,
@@ -19,6 +20,7 @@ impl Instruction {
     pub fn size(&self) -> u16 {
         match self {
             Instruction::Noop => 1,
+            Instruction::DecrementC => 1,
             Instruction::LoadCFrom8Imm { .. } => 2,
             Instruction::LoadDEFrom16Imm { .. } => 3,
             Instruction::StoreAAtDE => 1,
@@ -37,6 +39,7 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             Instruction::Noop => format!("NOP"),
+            Instruction::DecrementC => format!("DEC C"),
             Instruction::LoadCFrom8Imm { new_value } => format!("LD C, ${new_value:02X}"),
             Instruction::LoadDEFrom16Imm { new_value } => format!("LD DE, ${new_value:04X}"),
             Instruction::StoreAAtDE => format!("LD (DE), A"),
