@@ -13,6 +13,7 @@ pub enum Instruction {
     LoadHLFrom16Imm { new_value: u16 },
     LoadAFromHLAndInc,
     LoadBFromA,
+    LoadAFromB,
     Jump { address: u16 },
 }
 
@@ -30,6 +31,7 @@ impl Instruction {
             Instruction::LoadHLFrom16Imm { .. } => 3,
             Instruction::LoadAFromHLAndInc => 1,
             Instruction::LoadBFromA => 1,
+            Instruction::LoadAFromB => 1,
             Instruction::Jump { .. } => 3,
         }
     }
@@ -53,6 +55,7 @@ impl Display for Instruction {
             Instruction::LoadHLFrom16Imm { new_value } => format!("LD HL, ${new_value:04X}"),
             Instruction::LoadAFromHLAndInc => format!("LD A, (HL+)"),
             Instruction::LoadBFromA => format!("LD B, A"),
+            Instruction::LoadAFromB => format!("LD A, B"),
             Instruction::Jump { address } => format!("JP ${address:04X}"),
         };
         write!(f, "{str}")

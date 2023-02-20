@@ -75,6 +75,7 @@ impl Core<'_> {
             }
             0x2A => Instruction::LoadAFromHLAndInc,
             0x47 => Instruction::LoadBFromA,
+            0x78 => Instruction::LoadAFromB,
             0xC3 => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
@@ -134,6 +135,7 @@ impl Core<'_> {
                 *self.registers.hl.get_mut() += 1;
             }
             Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
+            Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
             Instruction::Jump { address } => self.registers.pc = address,
         }
     }
