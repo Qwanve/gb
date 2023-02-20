@@ -94,7 +94,8 @@ impl Core<'_> {
             Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
             Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
             Instruction::IncrementE => {
-                *self.registers.de.split_mut().1 += 1;
+                let e = self.registers.de.split_mut().1;
+                *e = e.wrapping_add(1);
                 self.registers.set_zero(*self.registers.de.split().1 == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
