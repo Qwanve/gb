@@ -89,9 +89,10 @@ impl MemoryBankController for MBC1 {
             }
             0x4000..=0x7FFF => {
                 if self.bank_selection == 0 {
-                    self.banks[1][usize::from(address)]
+                    self.banks[1][usize::from(address) - 0x4000]
                 } else {
-                    self.banks[usize::from(self.currently_selected_bank())][usize::from(address)]
+                    self.banks[usize::from(self.currently_selected_bank())]
+                        [usize::from(address) - 0x4000]
                 }
             }
             _ => {

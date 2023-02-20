@@ -1,4 +1,11 @@
+use std::ops::ControlFlow;
+
+use instructions::Instruction;
+use memory_management_unit::MemoryManagementUnit;
+use registers::Registers;
+
 pub mod cartridge;
+pub mod instructions;
 pub mod memory_management_unit;
 pub mod registers;
 
@@ -28,4 +35,69 @@ pub enum Model {
     AGB,
     ///The Gameboy Advance in Gameboy compatibility mode
     AGB_DMG,
+}
+
+pub struct Core<'rom> {
+    mmu: MemoryManagementUnit<'rom>,
+    registers: Registers,
+}
+
+impl Core<'_> {
+    pub fn new<'rom>(rom: &'rom [u8], model: Model) -> Option<Core<'rom>> {
+        let mmu = MemoryManagementUnit::new(rom).ok()?;
+        let registers = Registers::init(model);
+        Some(Core { mmu, registers })
+    }
+
+    fn read_instruction_at(&self, address: u16) -> Instruction {
+        let byte = self.mmu.read(address);
+        match byte {
+            0x00 => Instruction::Noop,
+            0x0E => {
+                let new_value = self.mmu.read(address + 1);
+                Instruction::LoadCFrom8Imm { new_value }
+            }
+            0x11 => {
+                let new_value = self.mmu.read_u16(address + 1);
+                Instruction::LoadDEFrom16Imm { new_value }
+            }
+            0x21 => {
+                let new_value = self.mmu.read_u16(address + 1);
+                Instruction::LoadHLFrom16Imm { new_value }
+            }
+            0x47 => Instruction::LoadBFromA,
+            0xC3 => {
+                let address = self.mmu.read_u16(address + 1);
+                Instruction::Jump { address }
+            }
+            value => todo!("Unknown instruction {value:#04X}"),
+        }
+    }
+    fn read_instruction(&mut self) -> Instruction {
+        self.read_instruction_at(self.registers.pc)
+    }
+
+    fn execute(&mut self, instruction: Instruction) {
+        self.registers.pc += instruction.size();
+        match instruction {
+            Instruction::Noop => {}
+            Instruction::LoadCFrom8Imm { new_value } => {
+                *self.registers.bc.split_mut().1 = new_value
+            }
+            Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
+            Instruction::LoadHLFrom16Imm { new_value } => *self.registers.hl.get_mut() = new_value,
+            Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
+            Instruction::Jump { address } => self.registers.pc = address,
+        }
+    }
+
+    //TODO: Break reason
+    pub fn step(&mut self) -> ControlFlow<(), ()> {
+        let instr = self.read_instruction();
+        println!("PC: {:#06X} INSTR: {instr}", self.registers.pc);
+        self.execute(instr);
+        match instr {
+            _ => ControlFlow::Continue(()),
+        }
+    }
 }
