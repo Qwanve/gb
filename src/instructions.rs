@@ -4,6 +4,7 @@ use std::fmt::Display;
 pub enum Instruction {
     Noop,
     LoadCFrom8Imm { new_value: u8 },
+    IncrementE,
     LoadDEFrom16Imm { new_value: u16 },
     StoreAAtDE,
     LoadHLFrom16Imm { new_value: u16 },
@@ -17,6 +18,7 @@ impl Instruction {
         match self {
             Instruction::Noop => 1,
             Instruction::LoadCFrom8Imm { .. } => 2,
+            Instruction::IncrementE => 1,
             Instruction::LoadDEFrom16Imm { .. } => 3,
             Instruction::StoreAAtDE => 1,
             Instruction::LoadHLFrom16Imm { .. } => 3,
@@ -32,6 +34,7 @@ impl Display for Instruction {
         let str = match self {
             Instruction::Noop => format!("NOP"),
             Instruction::LoadCFrom8Imm { new_value } => format!("LD C, ${new_value:02X}"),
+            Instruction::IncrementE => format!("INC E"),
             Instruction::LoadDEFrom16Imm { new_value } => format!("LD DE, ${new_value:04X}"),
             Instruction::StoreAAtDE => format!("LD (DE), A"),
             Instruction::LoadHLFrom16Imm { new_value } => format!("LD HL, ${new_value:04X}"),

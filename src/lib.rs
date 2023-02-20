@@ -62,6 +62,7 @@ impl Core<'_> {
                 Instruction::LoadDEFrom16Imm { new_value }
             }
             0x12 => Instruction::StoreAAtDE,
+            0x1C => Instruction::IncrementE,
             0x21 => {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadHLFrom16Imm { new_value }
@@ -85,6 +86,14 @@ impl Core<'_> {
             Instruction::Noop => {}
             Instruction::LoadCFrom8Imm { new_value } => {
                 *self.registers.bc.split_mut().1 = new_value
+            }
+            Instruction::IncrementE => {
+                *self.registers.de.split_mut().0 += 1;
+                self.registers.set_zero(*self.registers.de.split().0 == 0);
+                self.registers.set_subtraction(false);
+                //TODO: Verify half carry register
+                self.registers
+                    .set_half_carry(self.registers.de.split().0 & 0x0F == 0);
             }
             Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
             Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
