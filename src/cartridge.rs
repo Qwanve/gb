@@ -104,11 +104,11 @@ impl Cartridge<'_> {
         })
     }
 
-    pub fn header(&self) -> &Header {
+    pub const fn header(&self) -> &Header {
         &self.header
     }
 
-    pub fn mbc(&self) -> &dyn MemoryBankController {
+    pub const fn mbc(&self) -> &dyn MemoryBankController {
         &*self.memory_bank_controller
     }
 
