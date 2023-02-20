@@ -120,7 +120,7 @@ impl Core<'_> {
     //TODO: Break reason
     pub fn step(&mut self) -> ControlFlow<(), ()> {
         let instr = self.read_instruction();
-        println!("PC: {:#06X} INSTR: {instr}", self.registers.pc);
+        println!("{} | {instr}", self.registers);
         self.execute(instr);
         match instr {
             _ => ControlFlow::Continue(()),
