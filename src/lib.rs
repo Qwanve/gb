@@ -62,6 +62,7 @@ impl Core<'_> {
                 Instruction::LoadDEFrom16Imm { new_value }
             }
             0x12 => Instruction::StoreAAtDE,
+            0x14 => Instruction::IncrementD,
             0x1C => Instruction::IncrementE,
             0x20 => {
                 let offset = self.mmu.read(address + 1) as i8;
@@ -93,6 +94,15 @@ impl Core<'_> {
             }
             Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
             Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
+            Instruction::IncrementD => {
+                let d = self.registers.de.split_mut().0;
+                *d = d.wrapping_add(1);
+                self.registers.set_zero(*self.registers.de.split().0 == 0);
+                self.registers.set_subtraction(false);
+                //TODO: Verify half carry register
+                self.registers
+                    .set_half_carry(self.registers.de.split().0 & 0x0F == 0);
+            }
             Instruction::IncrementE => {
                 let e = self.registers.de.split_mut().1;
                 *e = e.wrapping_add(1);
