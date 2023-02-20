@@ -61,6 +61,7 @@ impl Core<'_> {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadDEFrom16Imm { new_value }
             }
+            0x12 => Instruction::StoreAAtDE,
             0x21 => {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadHLFrom16Imm { new_value }
@@ -86,6 +87,7 @@ impl Core<'_> {
                 *self.registers.bc.split_mut().1 = new_value
             }
             Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
+            Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
             Instruction::LoadHLFrom16Imm { new_value } => *self.registers.hl.get_mut() = new_value,
             Instruction::LoadAFromHLAndInc => {
                 let byte = self.mmu.read(*self.registers.hl.get());

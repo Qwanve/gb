@@ -171,6 +171,23 @@ impl MemoryManagementUnit<'_> {
             }
         }
     }
+
+    pub fn write(&mut self, address: u16, value: u8) {
+        match address {
+            0x0000..=0x3FFF => todo!("Write to cartridge"),
+            0x4000..=0x7FFF => todo!("Write to cartridge"),
+            0x8000..=0x9FFF => todo!("Write to VRAM"),
+            0xA000..=0xBFFF => todo!("Write to External Ram"),
+            0xC000..=0xCFFF => todo!("Write to WRAM"),
+            0xD000..=0xDFFF => todo!("Write to WRAM"),
+            0xE000..=0xFDFF => todo!("Write to Echo RAM"),
+            0xFE00..=0xFE9F => todo!("Write to Sprite Attribute Table"),
+            0xFEA0..=0xFEFF => todo!("Write to prohibited area"),
+            0xFF00..=0xFF7F => todo!("Write to I/O Registers"),
+            0xFF80..=0xFFFE => todo!("Write to High RAM"),
+            0xFFFF => todo!("Write to Interrupt Enable Register"),
+        }
+    }
 }
 
 struct VRam {
