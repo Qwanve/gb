@@ -78,6 +78,10 @@ impl Core<'_> {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadSPFrom16Imm { new_value }
             }
+            0x3E => {
+                let new_value = self.mmu.read(address + 1);
+                Instruction::LoadAFrom8Imm { new_value }
+            }
             0x47 => Instruction::LoadBFromA,
             0x78 => Instruction::LoadAFromB,
             0xC3 => {
@@ -144,6 +148,7 @@ impl Core<'_> {
                 *self.registers.hl.get_mut() += 1;
             }
             Instruction::LoadSPFrom16Imm { new_value } => self.registers.sp = new_value,
+            Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
             Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
             Instruction::Jump { address } => self.registers.pc = address,
