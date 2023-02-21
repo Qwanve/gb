@@ -84,6 +84,10 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
             }
+            0xEA => {
+                let address = self.mmu.read_u16(address + 1);
+                Instruction::StoreAAt16Imm { address }
+            }
             0xF3 => Instruction::DisableInterrupts,
             value => todo!("Unknown instruction {value:#04X}"),
         }
@@ -143,6 +147,7 @@ impl Core<'_> {
             Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
             Instruction::DisableInterrupts => self.registers.disable_ime(),
         }
     }
