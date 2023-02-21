@@ -80,6 +80,7 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
             }
+            0xF3 => Instruction::DisableInterrupts,
             value => todo!("Unknown instruction {value:#04X}"),
         }
     }
@@ -137,11 +138,13 @@ impl Core<'_> {
             Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::DisableInterrupts => self.registers.disable_ime(),
         }
     }
 
     //TODO: Break reason
     pub fn step(&mut self) -> ControlFlow<(), ()> {
+        self.registers.update_ime();
         let instr = self.read_instruction();
         println!("{} | {instr}", self.registers);
         self.execute(instr);

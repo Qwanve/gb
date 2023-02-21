@@ -15,6 +15,7 @@ pub enum Instruction {
     LoadBFromA,
     LoadAFromB,
     Jump { address: u16 },
+    DisableInterrupts,
 }
 
 impl Instruction {
@@ -33,6 +34,7 @@ impl Instruction {
             Instruction::LoadBFromA => 1,
             Instruction::LoadAFromB => 1,
             Instruction::Jump { .. } => 3,
+            Instruction::DisableInterrupts => 1,
         }
     }
 }
@@ -57,6 +59,7 @@ impl Display for Instruction {
             Instruction::LoadBFromA => format!("LD B, A"),
             Instruction::LoadAFromB => format!("LD A, B"),
             Instruction::Jump { address } => format!("JP ${address:04X}"),
+            Instruction::DisableInterrupts => format!("DI"),
         };
         write!(f, "{str}")
     }
