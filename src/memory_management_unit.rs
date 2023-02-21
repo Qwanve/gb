@@ -179,7 +179,7 @@ impl MemoryManagementUnit<'_> {
             0x8000..=0x9FFF => todo!("Write to VRAM"),
             0xA000..=0xBFFF => todo!("Write to External Ram"),
             0xC000..=0xCFFF => self.wram.bank_zero[(address - 0xC000) as usize] = value,
-            0xD000..=0xDFFF => todo!("Write to WRAM"),
+            0xD000..=0xDFFF => self.write_wram_switchable_bank(address, value),
             0xE000..=0xFDFF => todo!("Write to Echo RAM"),
             0xFE00..=0xFE9F => todo!("Write to Sprite Attribute Table"),
             0xFEA0..=0xFEFF => todo!("Write to prohibited area"),
@@ -187,6 +187,16 @@ impl MemoryManagementUnit<'_> {
             0xFF80..=0xFFFE => todo!("Write to High RAM"),
             0xFFFF => todo!("Write to Interrupt Enable Register"),
         }
+    }
+
+    pub fn write_wram_switchable_bank(&mut self, address: u16, value: u8) {
+        let bank_select = self.io_registers.wram_bank_select & 0b111;
+        let mut bank = match self.wram.other_banks {
+            WRamSwitchableBanks::Gameboy(bank) => bank,
+            WRamSwitchableBanks::GameboyColor(banks) if bank_select == 0 => banks[1],
+            WRamSwitchableBanks::GameboyColor(banks) => banks[bank_select as usize],
+        };
+        bank[(address - 0xD000) as usize] = value;
     }
 }
 
