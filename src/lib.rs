@@ -167,10 +167,14 @@ impl Core<'_> {
 
     //TODO: Break reason
     pub fn step(&mut self) -> ControlFlow<(), ()> {
-        self.registers.update_ime();
         let instr = self.read_instruction();
         println!("{} | {instr}", self.registers);
         self.execute(instr);
+        //TODO: Accurate clocks for timers
+        //TODO: Delay
+        self.mmu.update_timers(1);
+        //TODO: Generate and run interrupts
+        self.registers.update_ime();
         match instr {
             _ => ControlFlow::Continue(()),
         }

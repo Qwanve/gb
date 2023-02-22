@@ -202,8 +202,22 @@ impl MemoryManagementUnit<'_> {
     pub fn write_io_registers(&mut self, address: u16, value: u8) {
         match address {
             0x0000..=0xFEFF | 0xFF80..=0xFFFF => unreachable!(),
+            0xFF04 => self.io_registers.timers.divide_register = 0,
+            //TODO: Verify this behavior
+            0xFF05 => self.io_registers.timers.timer_register = value,
+            0xFF06 => self.io_registers.timers.timer_modulo = value,
+            0xFF07 => {
+                let enable = value & 0b0000_0100 != 0;
+                let clock = ClockSpeed::try_from(value & 0b0000_0011).unwrap();
+                self.io_registers.timers.timer_enable = enable;
+                self.io_registers.timers.clock_speed = clock;
+            }
             _ => todo!("Write to I/O register ${address:04X}"),
         }
+    }
+
+    pub fn update_timers(&mut self, clock: u8) {
+        self.io_registers.timers.update(clock)
     }
 }
 
@@ -266,7 +280,7 @@ impl SpriteAttributes {
 struct IORegisters {
     joypad: u8,
     serial_transfer: (u8, u8),
-    // timers: Timers,
+    timers: Timers,
     // audio: Audio,
     // wave: WavePattern,
     // lcd_control: LCDControl,
@@ -282,9 +296,82 @@ impl IORegisters {
         IORegisters {
             joypad: 0,
             serial_transfer: (0, 0),
+            timers: Timers::new(),
             vram_bank_select: 0,
             boot_rom_disable: false,
             wram_bank_select: 0,
+        }
+    }
+}
+
+struct Timers {
+    timer_enable: bool,
+    clock_speed: ClockSpeed,
+    divide_register: u8,
+    timer_register: u8,
+    timer_modulo: u8,
+    clocks: u16,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ClockSpeed {
+    OncePer1024,
+    OncePer16,
+    OncePer64,
+    OncePer256,
+}
+
+impl TryFrom<u8> for ClockSpeed {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0b00 => Ok(ClockSpeed::OncePer1024),
+            0b01 => Ok(ClockSpeed::OncePer16),
+            0b10 => Ok(Self::OncePer64),
+            0b11 => Ok(Self::OncePer256),
+            _ => Err(()),
+        }
+    }
+}
+
+impl From<ClockSpeed> for u16 {
+    fn from(value: ClockSpeed) -> Self {
+        match value {
+            ClockSpeed::OncePer1024 => 1024,
+            ClockSpeed::OncePer16 => 16,
+            ClockSpeed::OncePer64 => 64,
+            ClockSpeed::OncePer256 => 256,
+        }
+    }
+}
+
+impl Timers {
+    pub fn new() -> Self {
+        Timers {
+            timer_enable: false,
+            clock_speed: ClockSpeed::OncePer1024,
+            //TODO: Different Models have different values here
+            divide_register: 0x18,
+            timer_register: 0,
+            timer_modulo: 0,
+            clocks: 0,
+        }
+    }
+
+    pub fn update(&mut self, clocks: u8) {
+        if self.timer_enable {
+            self.divide_register = self.divide_register.wrapping_add(clocks);
+            self.clocks = (self.clocks + u16::from(clocks)) % u16::from(self.clock_speed);
+            if self.clocks == 0 {
+                let (new, overflow) = self.timer_register.overflowing_add(1);
+                if overflow {
+                    self.timer_register = self.timer_modulo;
+                    //TODO: Generate interrupts
+                } else {
+                    self.timer_register = new;
+                }
+            }
         }
     }
 }
