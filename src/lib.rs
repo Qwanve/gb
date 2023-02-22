@@ -88,6 +88,10 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
             }
+            0xE0 => {
+                let address = self.mmu.read(address + 1);
+                Instruction::OutputAToPort { address }
+            }
             0xEA => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::StoreAAt16Imm { address }
@@ -152,6 +156,10 @@ impl Core<'_> {
             Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::OutputAToPort { address } => {
+                let address = 0xFF00 + u16::from(address);
+                self.mmu.write(address, self.registers.a)
+            }
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
             Instruction::DisableInterrupts => self.registers.disable_ime(),
         }

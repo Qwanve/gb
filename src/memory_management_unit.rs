@@ -183,7 +183,7 @@ impl MemoryManagementUnit<'_> {
             0xE000..=0xFDFF => todo!("Write to Echo RAM"),
             0xFE00..=0xFE9F => todo!("Write to Sprite Attribute Table"),
             0xFEA0..=0xFEFF => todo!("Write to prohibited area"),
-            0xFF00..=0xFF7F => todo!("Write to I/O Registers"),
+            0xFF00..=0xFF7F => self.write_io_registers(address, value),
             0xFF80..=0xFFFE => todo!("Write to High RAM"),
             0xFFFF => todo!("Write to Interrupt Enable Register"),
         }
@@ -197,6 +197,13 @@ impl MemoryManagementUnit<'_> {
             WRamSwitchableBanks::GameboyColor(banks) => banks[bank_select as usize],
         };
         bank[(address - 0xD000) as usize] = value;
+    }
+
+    pub fn write_io_registers(&mut self, address: u16, value: u8) {
+        match address {
+            0x0000..=0xFEFF | 0xFF80..=0xFFFF => unreachable!(),
+            _ => todo!("Write to I/O register ${address:04X}"),
+        }
     }
 }
 
