@@ -40,13 +40,18 @@ pub enum Model {
 pub struct Core<'rom> {
     mmu: MemoryManagementUnit<'rom>,
     registers: Registers,
+    ime: InterruptMasterEnable,
 }
 
 impl Core<'_> {
     pub fn new<'rom>(rom: &'rom [u8], model: Model) -> Option<Core<'rom>> {
         let mmu = MemoryManagementUnit::new(rom).ok()?;
         let registers = Registers::init(model);
-        Some(Core { mmu, registers })
+        Some(Core {
+            mmu,
+            registers,
+            ime: InterruptMasterEnable::Enabled,
+        })
     }
 
     fn read_instruction_at(&self, address: u16) -> Instruction {
@@ -161,7 +166,7 @@ impl Core<'_> {
                 self.mmu.write(address, self.registers.a)
             }
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
-            Instruction::DisableInterrupts => self.registers.disable_ime(),
+            Instruction::DisableInterrupts => self.disable_ime(),
         }
     }
 
@@ -174,9 +179,44 @@ impl Core<'_> {
         //TODO: Delay
         self.mmu.update_timers(1);
         //TODO: Generate and run interrupts
-        self.registers.update_ime();
+        self.update_ime();
         match instr {
             _ => ControlFlow::Continue(()),
         }
+    }
+
+    pub fn disable_ime(&mut self) {
+        self.ime = InterruptMasterEnable::Disabled;
+    }
+
+    pub fn enable_ime(&mut self) {
+        self.ime = match self.ime {
+            InterruptMasterEnable::Disabled => InterruptMasterEnable::Enabling,
+            InterruptMasterEnable::Enabling => {
+                eprintln!("Warning: IME wasn't updated properly");
+                InterruptMasterEnable::Enabled
+            }
+            InterruptMasterEnable::Enabled => InterruptMasterEnable::Enabled,
+        }
+    }
+
+    pub fn update_ime(&mut self) {
+        self.ime = match self.ime {
+            InterruptMasterEnable::Enabling => InterruptMasterEnable::Enabled,
+            v => v,
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum InterruptMasterEnable {
+    Disabled,
+    Enabling,
+    Enabled,
+}
+
+impl InterruptMasterEnable {
+    pub fn is_enabled(&self) -> bool {
+        *self == InterruptMasterEnable::Enabled
     }
 }

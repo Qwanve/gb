@@ -13,7 +13,6 @@ pub struct Registers {
     pub hl: SplitRegister,
     pub pc: u16,
     pub sp: u16,
-    pub ime: InterruptMasterEnable,
 }
 
 impl Registers {
@@ -29,31 +28,8 @@ impl Registers {
                 hl: SplitRegister(0x8403),
                 pc: 0x100,
                 sp: 0xFFFE,
-                ime: InterruptMasterEnable::Enabled,
             },
             _ => todo!("Different model register initial values : {model:?}"),
-        }
-    }
-
-    pub fn disable_ime(&mut self) {
-        self.ime = InterruptMasterEnable::Disabled;
-    }
-
-    pub fn enable_ime(&mut self) {
-        self.ime = match self.ime {
-            InterruptMasterEnable::Disabled => InterruptMasterEnable::Enabling,
-            InterruptMasterEnable::Enabling => {
-                eprintln!("Warning: IME wasn't updated properly");
-                InterruptMasterEnable::Enabled
-            }
-            InterruptMasterEnable::Enabled => InterruptMasterEnable::Enabled,
-        }
-    }
-
-    pub fn update_ime(&mut self) {
-        self.ime = match self.ime {
-            InterruptMasterEnable::Enabling => InterruptMasterEnable::Enabled,
-            v => v,
         }
     }
 
@@ -209,19 +185,6 @@ impl SplitRegister {
     #[must_use]
     pub const fn get(&self) -> &u16 {
         &self.0
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum InterruptMasterEnable {
-    Disabled,
-    Enabling,
-    Enabled,
-}
-
-impl InterruptMasterEnable {
-    pub fn is_enabled(&self) -> bool {
-        *self == InterruptMasterEnable::Enabled
     }
 }
 
