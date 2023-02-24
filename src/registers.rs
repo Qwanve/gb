@@ -102,12 +102,12 @@ impl Display for Registers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "A: {:02X} ", self.a)?;
         write!(f, "F: {:02X} ", self.flags())?;
-        write!(f, "B: {:02X} ", self.bc.split().0)?;
-        write!(f, "C: {:02X} ", self.bc.split().1)?;
-        write!(f, "D: {:02X} ", self.de.split().0)?;
-        write!(f, "E: {:02X} ", self.de.split().1)?;
-        write!(f, "H: {:02X} ", self.hl.split().0)?;
-        write!(f, "L: {:02X} ", self.hl.split().1)?;
+        write!(f, "B: {:02X} ", self.bc.split().high)?;
+        write!(f, "C: {:02X} ", self.bc.split().low)?;
+        write!(f, "D: {:02X} ", self.de.split().high)?;
+        write!(f, "E: {:02X} ", self.de.split().low)?;
+        write!(f, "H: {:02X} ", self.hl.split().high)?;
+        write!(f, "L: {:02X} ", self.hl.split().low)?;
         write!(f, "SP: {:04X} ", self.sp)?;
         //TODO: Rom Bank number
         write!(f, "PC: {:04X} ", self.pc)
@@ -118,6 +118,16 @@ impl Display for Registers {
 /// as two 8-bit registers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct SplitRegister(u16);
+
+pub struct SplitMut<'a> {
+    pub high: &'a mut u8,
+    pub low: &'a mut u8,
+}
+
+pub struct Split<'a> {
+    pub high: &'a u8,
+    pub low: &'a u8,
+}
 
 impl SplitRegister {
     ///Creates a new splittable register
@@ -132,17 +142,21 @@ impl SplitRegister {
     ///```
     ///# use gb::registers::SplitRegister;
     ///let mut x = SplitRegister::new(0);
-    ///let (xh, xl) = x.split_mut();
-    ///*xh = 0x10;
-    ///*xl = 0x15;
+    ///let registers = x.split_mut();
+    ///*registers.high = 0x10;
+    ///*registers.low = 0x15;
     ///assert_eq!(*x.get(), 0x1015);
     ///```
     #[must_use]
-    pub fn split_mut<'a>(&'a mut self) -> (&'a mut u8, &'a mut u8) {
+    pub fn split_mut<'a>(&'a mut self) -> SplitMut<'a> {
         let s: &'a mut (u8, u8) =
             unsafe { &mut *(std::ptr::addr_of_mut!(self.0).cast::<(u8, u8)>()) };
         // let s: &'a mut (u8, u8) = unsafe { std::mem::transmute(&mut self.0) };
-        (&mut s.1, &mut s.0)
+        // (&mut s.1, &mut s.0)
+        SplitMut {
+            high: &mut s.1,
+            low: &mut s.0,
+        }
     }
     ///Splits the register into immutable 8-bit components.
     ///Returns a tuple of (high, low) registers
@@ -151,15 +165,19 @@ impl SplitRegister {
     ///```
     ///# use gb::registers::SplitRegister;
     ///let x = SplitRegister::new(0x5613);
-    ///let (xh, xl) = x.split();
-    ///assert_eq!(*xh, 0x56);
-    ///assert_eq!(*xl, 0x13);
+    ///let registers = x.split();
+    ///assert_eq!(*registers.high, 0x56);
+    ///assert_eq!(*registers.low, 0x13);
     ///````
     #[must_use]
-    pub const fn split<'a>(&'a self) -> (&'a u8, &'a u8) {
+    pub const fn split<'a>(&'a self) -> Split<'a> {
         let s: &'a (u8, u8) = unsafe { &*(std::ptr::addr_of!(self.0).cast::<(u8, u8)>()) };
         // let s: &'a mut (u8, u8) = unsafe { std::mem::transmute(&mut self.0) };
-        (&s.1, &s.0)
+        // (&s.1, &s.0)
+        Split {
+            high: &s.1,
+            low: &s.0,
+        }
     }
     ///Returns a mutable reference to the combined 16-bit register
     ///
@@ -201,12 +219,12 @@ mod test {
         assert_eq!(r.subtraction(), false);
         assert_eq!(r.half_carry(), false);
         assert_eq!(r.carry(), false);
-        assert_eq!(*r.bc.split().0, 0xFF);
-        assert_eq!(*r.bc.split().1, 0x13);
-        assert_eq!(*r.de.split().0, 0x00);
-        assert_eq!(*r.de.split().1, 0xC1);
-        assert_eq!(*r.hl.split().0, 0x84);
-        assert_eq!(*r.hl.split().1, 0x03);
+        assert_eq!(*r.bc.split().high, 0xFF);
+        assert_eq!(*r.bc.split().low, 0x13);
+        assert_eq!(*r.de.split().high, 0x00);
+        assert_eq!(*r.de.split().low, 0xC1);
+        assert_eq!(*r.hl.split().high, 0x84);
+        assert_eq!(*r.hl.split().low, 0x03);
         assert_eq!(r.pc, 0x100);
         assert_eq!(r.sp, 0xFFFE);
     }

@@ -114,36 +114,37 @@ impl Core<'_> {
         match instruction {
             Instruction::Noop => {}
             Instruction::DecrementC => {
-                let c = self.registers.bc.split_mut().1;
+                let c = self.registers.bc.split_mut().low;
                 *c = c.wrapping_sub(1);
-                self.registers.set_zero(*self.registers.bc.split().1 == 0);
+                self.registers.set_zero(*self.registers.bc.split().low == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
                 self.registers
-                    .set_half_carry(self.registers.bc.split().1 & 0x0F == 0x0F);
+                    .set_half_carry(self.registers.bc.split().low & 0x0F == 0x0F);
             }
             Instruction::LoadCFrom8Imm { new_value } => {
-                *self.registers.bc.split_mut().1 = new_value
+                *self.registers.bc.split_mut().low = new_value
             }
             Instruction::LoadDEFrom16Imm { new_value } => *self.registers.de.get_mut() = new_value,
             Instruction::StoreAAtDE => self.mmu.write(*self.registers.de.get(), self.registers.a),
             Instruction::IncrementD => {
-                let d = self.registers.de.split_mut().0;
+                let d = self.registers.de.split_mut().high;
                 *d = d.wrapping_add(1);
-                self.registers.set_zero(*self.registers.de.split().0 == 0);
+                self.registers
+                    .set_zero(*self.registers.de.split().high == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
                 self.registers
-                    .set_half_carry(self.registers.de.split().0 & 0x0F == 0);
+                    .set_half_carry(self.registers.de.split().high & 0x0F == 0);
             }
             Instruction::IncrementE => {
-                let e = self.registers.de.split_mut().1;
+                let e = self.registers.de.split_mut().low;
                 *e = e.wrapping_add(1);
-                self.registers.set_zero(*self.registers.de.split().1 == 0);
+                self.registers.set_zero(*self.registers.de.split().low == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
                 self.registers
-                    .set_half_carry(self.registers.de.split().1 & 0x0F == 0);
+                    .set_half_carry(self.registers.de.split().low & 0x0F == 0);
             }
             Instruction::JumpRelativeIfNotZero { offset } => {
                 if !self.registers.zero() {
@@ -158,8 +159,8 @@ impl Core<'_> {
             }
             Instruction::LoadSPFrom16Imm { new_value } => self.registers.sp = new_value,
             Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
-            Instruction::LoadBFromA => *self.registers.bc.split_mut().0 = self.registers.a,
-            Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().0,
+            Instruction::LoadBFromA => *self.registers.bc.split_mut().high = self.registers.a,
+            Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().high,
             Instruction::Jump { address } => self.registers.pc = address,
             Instruction::OutputAToPort { address } => {
                 let address = 0xFF00 + u16::from(address);
