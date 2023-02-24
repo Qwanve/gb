@@ -1,4 +1,5 @@
 use super::cartridge::{Cartridge, CartridgeParseError};
+use bitvec::{bitarr, field::BitField, order::Msb0, prelude::BitArray, view::BitView, BitArr};
 use thiserror::Error;
 
 const UNINIT: u8 = 0xCD;
@@ -15,7 +16,7 @@ pub struct MemoryManagementUnit<'rom> {
     sprite_attribute_table: [SpriteAttributes; 40],
     io_registers: IORegisters,
     hram: [u8; 0x7E],
-    interrupt_enable_register: bitvec::BitArr!(for 5, in u8, bitvec::order::Msb0),
+    interrupt_enable_register: BitArr!(for 5, in u8, Msb0),
 }
 
 impl MemoryManagementUnit<'_> {
@@ -27,7 +28,7 @@ impl MemoryManagementUnit<'_> {
         let sprite_attribute_table = [SpriteAttributes::new(); 40];
         let io_registers = IORegisters::new();
         let hram = [0; 0x7E];
-        let interrupt_enable_register = bitvec::bitarr![u8, bitvec::order::Msb0; 0; 5];
+        let interrupt_enable_register = bitarr![u8, Msb0; 0; 5];
         Ok(MemoryManagementUnit {
             cartridge,
             vram,
@@ -263,7 +264,7 @@ struct SpriteAttributes {
     y_pos: u8,
     x_pos: u8,
     tile_index: u8,
-    flags: bitvec::BitArr!(for 8, in u8, bitvec::order::Msb0),
+    flags: BitArr!(for 8, in u8, Msb0),
 }
 
 impl SpriteAttributes {
@@ -272,7 +273,7 @@ impl SpriteAttributes {
             y_pos: 0,
             x_pos: 0,
             tile_index: 0,
-            flags: bitvec::bitarr![u8, bitvec::order::Msb0; 0; 8],
+            flags: bitarr![u8, Msb0; 0; 8],
         }
     }
 }
