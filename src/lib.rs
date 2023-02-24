@@ -69,6 +69,10 @@ impl Core<'_> {
             }
             0x12 => Instruction::StoreAAtDE,
             0x14 => Instruction::IncrementD,
+            0x18 => {
+                let offset = self.mmu.read(address + 1) as i8;
+                Instruction::JumpRelative { offset }
+            }
             0x1C => Instruction::IncrementE,
             0x20 => {
                 let offset = self.mmu.read(address + 1) as i8;
@@ -89,9 +93,15 @@ impl Core<'_> {
             }
             0x47 => Instruction::LoadBFromA,
             0x78 => Instruction::LoadAFromB,
+            0x7C => Instruction::LoadAFromH,
+            0x7D => Instruction::LoadAFromL,
             0xC3 => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
+            }
+            0xCD => {
+                let address = self.mmu.read_u16(address + 1);
+                Instruction::Call { address }
             }
             0xE0 => {
                 let address = self.mmu.read(address + 1);
@@ -137,6 +147,9 @@ impl Core<'_> {
                 self.registers
                     .set_half_carry(self.registers.de.split().high & 0x0F == 0);
             }
+            Instruction::JumpRelative { offset } => {
+                self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
+            }
             Instruction::IncrementE => {
                 let e = self.registers.de.split_mut().low;
                 *e = e.wrapping_add(1);
@@ -161,7 +174,14 @@ impl Core<'_> {
             Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
             Instruction::LoadBFromA => *self.registers.bc.split_mut().high = self.registers.a,
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().high,
+            Instruction::LoadAFromH => self.registers.a = *self.registers.hl.split().high,
+            Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::Call { address } => {
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.sp -= 2;
+                self.registers.pc = address;
+            }
             Instruction::OutputAToPort { address } => {
                 let address = 0xFF00 + u16::from(address);
                 self.mmu.write(address, self.registers.a)

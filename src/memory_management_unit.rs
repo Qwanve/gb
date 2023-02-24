@@ -193,6 +193,12 @@ impl MemoryManagementUnit<'_> {
         }
     }
 
+    pub fn write_u16(&mut self, address: u16, value: u16) {
+        let bytes = value.to_le_bytes();
+        self.write(address, bytes[0]);
+        self.write(address.wrapping_sub(1), bytes[1]);
+    }
+
     pub fn write_wram_switchable_bank(&mut self, address: u16, value: u8) {
         let bank_select = self.io_registers.wram_bank_select & 0b111;
         let mut bank = match self.wram.other_banks {
