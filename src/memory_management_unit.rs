@@ -17,6 +17,7 @@ pub struct MemoryManagementUnit<'rom> {
     io_registers: IORegisters,
     hram: [u8; 0x7E],
     interrupt_enable_register: BitArr!(for 5, in u8, Msb0),
+    interrupt_flag: BitArr!(for 5, in u8, Msb0),
 }
 
 impl MemoryManagementUnit<'_> {
@@ -29,6 +30,7 @@ impl MemoryManagementUnit<'_> {
         let io_registers = IORegisters::new();
         let hram = [0; 0x7E];
         let interrupt_enable_register = bitarr![u8, Msb0; 0; 5];
+        let interrupt_flag = bitarr![u8, Msb0; 0; 5];
         Ok(MemoryManagementUnit {
             cartridge,
             vram,
@@ -37,6 +39,7 @@ impl MemoryManagementUnit<'_> {
             io_registers,
             hram,
             interrupt_enable_register,
+            interrupt_flag,
         })
     }
 
@@ -186,7 +189,7 @@ impl MemoryManagementUnit<'_> {
             0xFEA0..=0xFEFF => todo!("Write to prohibited area"),
             0xFF00..=0xFF7F => self.write_io_registers(address, value),
             0xFF80..=0xFFFE => todo!("Write to High RAM"),
-            0xFFFF => todo!("Write to Interrupt Enable Register"),
+            0xFFFF => self.interrupt_enable_register = BitArray::new([value]),
         }
     }
 
@@ -212,6 +215,9 @@ impl MemoryManagementUnit<'_> {
                 let clock = ClockSpeed::try_from(value & 0b0000_0011).unwrap();
                 self.io_registers.timers.timer_enable = enable;
                 self.io_registers.timers.clock_speed = clock;
+            }
+            0xFF0F => {
+                self.interrupt_flag = BitArray::new([value]);
             }
             _ => todo!("Write to I/O register ${address:04X}"),
         }
