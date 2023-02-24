@@ -219,6 +219,19 @@ impl MemoryManagementUnit<'_> {
             0xFF0F => {
                 self.interrupt_flag = BitArray::new([value]);
             }
+            0xFF24 => {
+                self.io_registers.audio.master_volume_and_vin_mixing = MasterVolume::from(value);
+            }
+            0xFF25 => {
+                self.io_registers.audio.panning = BitArray::new([value]);
+            }
+            0xFF26 => {
+                if value.view_bits::<Msb0>()[7] {
+                    self.io_registers.audio.enable()
+                } else {
+                    self.io_registers.audio.disable()
+                }
+            }
             _ => todo!("Write to I/O register ${address:04X}"),
         }
     }
@@ -288,7 +301,7 @@ struct IORegisters {
     joypad: u8,
     serial_transfer: (u8, u8),
     timers: Timers,
-    // audio: Audio,
+    audio: Audio,
     // wave: WavePattern,
     // lcd_control: LCDControl,
     vram_bank_select: u8,
@@ -304,10 +317,70 @@ impl IORegisters {
             joypad: 0,
             serial_transfer: (0, 0),
             timers: Timers::new(),
+            audio: Audio::new(),
             vram_bank_select: 0,
             boot_rom_disable: false,
             wram_bank_select: 0,
         }
+    }
+}
+
+//TODO: Actually use this
+struct Audio {
+    enable: bool,
+    panning: BitArr![for 8, in u8, Msb0],
+    master_volume_and_vin_mixing: MasterVolume,
+}
+
+struct MasterVolume {
+    left_volume: u8,
+    right_volume: u8,
+    left_vin_mixing: bool,
+    right_vin_mixing: bool,
+}
+
+impl MasterVolume {
+    fn new() -> MasterVolume {
+        MasterVolume {
+            left_volume: 0,
+            right_volume: 0,
+            left_vin_mixing: false,
+            right_vin_mixing: false,
+        }
+    }
+}
+
+impl From<u8> for MasterVolume {
+    fn from(value: u8) -> Self {
+        //TODO: Unit test
+        let bits = value.view_bits::<Msb0>();
+        let left_vin_mixing = bits[7];
+        let right_vin_mixing = bits[3];
+        let left_volume = bits[4..=6].load();
+        let right_volume = bits[0..=2].load();
+
+        MasterVolume {
+            left_volume,
+            right_volume,
+            left_vin_mixing,
+            right_vin_mixing,
+        }
+    }
+}
+
+impl Audio {
+    fn new() -> Audio {
+        Audio {
+            enable: true,
+            panning: BitArray::new([0]),
+            master_volume_and_vin_mixing: MasterVolume::new(),
+        }
+    }
+    fn disable(&mut self) {
+        self.enable = false;
+    }
+    fn enable(&mut self) {
+        self.enable = true;
     }
 }
 
