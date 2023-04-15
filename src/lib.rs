@@ -108,6 +108,7 @@ impl Core<'_> {
                 let address = self.mmu.read(address + 1);
                 Instruction::OutputAToPort { address }
             }
+            0xE5 => Instruction::PushHL,
             0xEA => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::StoreAAt16Imm { address }
@@ -194,6 +195,11 @@ impl Core<'_> {
             Instruction::OutputAToPort { address } => {
                 let address = 0xFF00 + u16::from(address);
                 self.mmu.write(address, self.registers.a)
+            }
+            Instruction::PushHL => {
+                self.mmu
+                    .write_u16(self.registers.sp, *self.registers.hl.get());
+                self.registers.sp -= 2;
             }
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
             Instruction::DisableInterrupts => self.disable_ime(),

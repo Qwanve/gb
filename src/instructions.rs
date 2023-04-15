@@ -23,6 +23,7 @@ pub enum Instruction {
     Return,
     Call { address: u16 },
     OutputAToPort { address: u8 },
+    PushHL,
     StoreAAt16Imm { address: u16 },
     DisableInterrupts,
 }
@@ -51,6 +52,7 @@ impl Instruction {
             Instruction::Return => 1,
             Instruction::Call { .. } => 3,
             Instruction::OutputAToPort { .. } => 2,
+            Instruction::PushHL => 1,
             Instruction::StoreAAt16Imm { .. } => 3,
             Instruction::DisableInterrupts => 1,
         }
@@ -89,6 +91,7 @@ impl Display for Instruction {
             Instruction::Return => format!("RET"),
             Instruction::Call { address } => format!("CALL ${address:04X}"),
             Instruction::OutputAToPort { address } => format!("LD ${address:02X}, A"),
+            Instruction::PushHL => format!("PUSH HL"),
             Instruction::StoreAAt16Imm { address } => format!("LD ${address:04X}, A"),
             Instruction::DisableInterrupts => format!("DI"),
         };
