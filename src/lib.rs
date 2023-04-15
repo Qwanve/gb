@@ -58,6 +58,11 @@ impl Core<'_> {
         let byte = self.mmu.read(address);
         match byte {
             0x00 => Instruction::Noop,
+            0x01 => {
+                let new_value = self.mmu.read_u16(address + 1);
+                Instruction::LoadBCFrom16Imm { new_value }
+            }
+            0x03 => Instruction::IncrementBC,
             0x0D => Instruction::DecrementC,
             0x0E => {
                 let new_value = self.mmu.read(address + 1);
@@ -96,10 +101,12 @@ impl Core<'_> {
             0x78 => Instruction::LoadAFromB,
             0x7C => Instruction::LoadAFromH,
             0x7D => Instruction::LoadAFromL,
+            0xB1 => Instruction::OrCWithA,
             0xC3 => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
             }
+            0xC5 => Instruction::LoadHFromL,
             0xCD => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Call { address }
@@ -132,6 +139,11 @@ impl Core<'_> {
         self.registers.pc += instruction.size();
         match instruction {
             Instruction::Noop => {}
+            Instruction::LoadBCFrom16Imm { new_value } => *self.registers.bc.get_mut() = new_value,
+            Instruction::IncrementBC => {
+                let bc = self.registers.bc.get_mut();
+                *bc = bc.wrapping_add(1);
+            }
             Instruction::DecrementC => {
                 let c = self.registers.bc.split_mut().low;
                 *c = c.wrapping_sub(1);
@@ -189,7 +201,13 @@ impl Core<'_> {
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().high,
             Instruction::LoadAFromH => self.registers.a = *self.registers.hl.split().high,
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
+            Instruction::OrCWithA => {
+                self.registers.a = self.registers.a & self.registers.bc.split().low;
+            }
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::LoadHFromL => {
+                *self.registers.hl.split_mut().high = *self.registers.hl.split().low
+            }
             Instruction::Return => {
                 self.registers.pc = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;

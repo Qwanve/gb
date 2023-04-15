@@ -3,6 +3,8 @@ use std::fmt::Display;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Instruction {
     Noop,
+    LoadBCFrom16Imm { new_value: u16 },
+    IncrementBC,
     DecrementC,
     LoadCFrom8Imm { new_value: u8 },
     LoadDEFrom16Imm { new_value: u16 },
@@ -20,7 +22,9 @@ pub enum Instruction {
     LoadAFromB,
     LoadAFromH,
     LoadAFromL,
+    OrCWithA,
     Jump { address: u16 },
+    LoadHFromL,
     Return,
     Call { address: u16 },
     OutputAToPort { address: u8 },
@@ -36,6 +40,8 @@ impl Instruction {
     pub fn size(&self) -> u16 {
         match self {
             Instruction::Noop => 1,
+            Instruction::LoadBCFrom16Imm { .. } => 3,
+            Instruction::IncrementBC => 1,
             Instruction::DecrementC => 1,
             Instruction::LoadCFrom8Imm { .. } => 2,
             Instruction::LoadDEFrom16Imm { .. } => 3,
@@ -53,7 +59,9 @@ impl Instruction {
             Instruction::LoadAFromB => 1,
             Instruction::LoadAFromH => 1,
             Instruction::LoadAFromL => 1,
+            Instruction::OrCWithA => 1,
             Instruction::Jump { .. } => 3,
+            Instruction::LoadHFromL => 1,
             Instruction::Return => 1,
             Instruction::Call { .. } => 3,
             Instruction::OutputAToPort { .. } => 2,
@@ -71,6 +79,8 @@ impl Display for Instruction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let str = match self {
             Instruction::Noop => format!("NOP"),
+            Instruction::LoadBCFrom16Imm { new_value } => format!("LD BC, ${new_value:04X}"),
+            Instruction::IncrementBC => format!("INC BC"),
             Instruction::DecrementC => format!("DEC C"),
             Instruction::LoadCFrom8Imm { new_value } => format!("LD C, ${new_value:02X}"),
             Instruction::LoadDEFrom16Imm { new_value } => format!("LD DE, ${new_value:04X}"),
@@ -78,13 +88,13 @@ impl Display for Instruction {
             Instruction::IncrementD => format!("INC D"),
             Instruction::JumpRelative { offset } => format!(
                 "JR {sign}{mag:#X}",
-                sign = if offset.is_positive() { '+' } else { '-' },
+                sign = if offset.is_negative() { '-' } else { '+' },
                 mag = offset.abs()
             ),
             Instruction::IncrementE => format!("INC E"),
             Instruction::JumpRelativeIfNotZero { offset } => format!(
                 "JR NZ, {sign}{mag:#X}",
-                sign = if offset.is_positive() { '+' } else { '-' },
+                sign = if offset.is_negative() { '-' } else { '+' },
                 mag = offset.abs()
             ),
             Instruction::LoadHLFrom16Imm { new_value } => format!("LD HL, ${new_value:04X}"),
@@ -96,7 +106,9 @@ impl Display for Instruction {
             Instruction::LoadAFromB => format!("LD A, B"),
             Instruction::LoadAFromH => format!("LD A, H"),
             Instruction::LoadAFromL => format!("LD A, L"),
+            Instruction::OrCWithA => format!("OR C"),
             Instruction::Jump { address } => format!("JP ${address:04X}"),
+            Instruction::LoadHFromL => format!("LD H, L"),
             Instruction::Return => format!("RET"),
             Instruction::Call { address } => format!("CALL ${address:04X}"),
             Instruction::OutputAToPort { address } => format!("LD ${address:02X}, A"),
