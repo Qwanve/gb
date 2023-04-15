@@ -103,6 +103,7 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Call { address }
             }
+            0xC9 => Instruction::Return,
             0xE0 => {
                 let address = self.mmu.read(address + 1);
                 Instruction::OutputAToPort { address }
@@ -112,7 +113,10 @@ impl Core<'_> {
                 Instruction::StoreAAt16Imm { address }
             }
             0xF3 => Instruction::DisableInterrupts,
-            value => todo!("Unknown instruction {value:#04X}"),
+            value => todo!(
+                "Unknown instruction {value:#04X} @ {:#06X}",
+                self.registers.pc
+            ),
         }
     }
     fn read_instruction(&mut self) -> Instruction {
@@ -177,9 +181,14 @@ impl Core<'_> {
             Instruction::LoadAFromH => self.registers.a = *self.registers.hl.split().high,
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::Jump { address } => self.registers.pc = address,
+            Instruction::Return => {
+                self.registers.pc = self.mmu.read_u16(self.registers.sp);
+                self.registers.sp += 2;
+            }
             Instruction::Call { address } => {
-                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                //TODO: Verify
                 self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
                 self.registers.pc = address;
             }
             Instruction::OutputAToPort { address } => {

@@ -78,10 +78,10 @@ impl MemoryManagementUnit<'_> {
 
     const fn read_wram_switchable_bank(&self, address: u16) -> u8 {
         let bank_select = self.io_registers.wram_bank_select & 0b111;
-        let bank = match self.wram.other_banks {
-            WRamSwitchableBanks::Gameboy(bank) => bank,
-            WRamSwitchableBanks::GameboyColor(banks) if bank_select == 0 => banks[1],
-            WRamSwitchableBanks::GameboyColor(banks) => banks[bank_select as usize],
+        let bank: &[u8; 4 * 1024] = match self.wram.other_banks {
+            WRamSwitchableBanks::Gameboy(ref bank) => bank,
+            WRamSwitchableBanks::GameboyColor(ref banks) if bank_select == 0 => &banks[1],
+            WRamSwitchableBanks::GameboyColor(ref banks) => &banks[bank_select as usize],
         };
         bank[(address - 0xD000) as usize]
     }
@@ -195,16 +195,16 @@ impl MemoryManagementUnit<'_> {
 
     pub fn write_u16(&mut self, address: u16, value: u16) {
         let bytes = value.to_le_bytes();
-        self.write(address, bytes[0]);
-        self.write(address.wrapping_sub(1), bytes[1]);
+        self.write(address.wrapping_add(0), bytes[0]);
+        self.write(address.wrapping_add(1), bytes[1]);
     }
 
     pub fn write_wram_switchable_bank(&mut self, address: u16, value: u8) {
         let bank_select = self.io_registers.wram_bank_select & 0b111;
-        let mut bank = match self.wram.other_banks {
-            WRamSwitchableBanks::Gameboy(bank) => bank,
-            WRamSwitchableBanks::GameboyColor(banks) if bank_select == 0 => banks[1],
-            WRamSwitchableBanks::GameboyColor(banks) => banks[bank_select as usize],
+        let mut bank: &mut [u8; 4 * 1024] = match self.wram.other_banks {
+            WRamSwitchableBanks::Gameboy(ref mut bank) => bank,
+            WRamSwitchableBanks::GameboyColor(ref mut banks) if bank_select == 0 => &mut banks[1],
+            WRamSwitchableBanks::GameboyColor(ref mut banks) => &mut banks[bank_select as usize],
         };
         bank[(address - 0xD000) as usize] = value;
     }
@@ -458,6 +458,33 @@ impl Timers {
                     self.timer_register = new;
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::memory_management_unit::MemoryManagementUnit;
+
+    #[test]
+    fn read_write_u16() {
+        let rom = std::fs::read("./test.gb").unwrap();
+        let mut mmu = MemoryManagementUnit::new(&rom).unwrap();
+        let address = 0xC800;
+        for var in (0..u16::MAX).rev() {
+            mmu.write_u16(address, var);
+            assert_eq!(mmu.read_u16(address), var);
+        }
+    }
+
+    #[test]
+    fn read_write_u8() {
+        let rom = std::fs::read("./test.gb").unwrap();
+        let mut mmu = MemoryManagementUnit::new(&rom).unwrap();
+        let address = 0xC800;
+        for var in 0..u8::MAX {
+            mmu.write(address, var);
+            assert_eq!(mmu.read(address), var);
         }
     }
 }
