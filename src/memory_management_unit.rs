@@ -15,7 +15,7 @@ pub struct MemoryManagementUnit<'rom> {
     wram: WRam,
     sprite_attribute_table: [SpriteAttributes; 40],
     io_registers: IORegisters,
-    hram: [u8; 0x7E],
+    hram: [u8; 0x7F],
     interrupt_enable_register: BitArr!(for 5, in u8, Msb0),
     interrupt_flag: BitArr!(for 5, in u8, Msb0),
 }
@@ -28,7 +28,7 @@ impl MemoryManagementUnit<'_> {
         let wram = WRam::new(false);
         let sprite_attribute_table = [SpriteAttributes::new(); 40];
         let io_registers = IORegisters::new();
-        let hram = [0; 0x7E];
+        let hram = [0; 0x7F];
         let interrupt_enable_register = bitarr![u8, Msb0; 0; 5];
         let interrupt_flag = bitarr![u8, Msb0; 0; 5];
         Ok(MemoryManagementUnit {

@@ -75,12 +75,12 @@ impl Core<'_> {
             0x12 => Instruction::StoreAAtDE,
             0x14 => Instruction::IncrementD,
             0x18 => {
-                let offset = self.mmu.read(address + 1) as i8;
+                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
                 Instruction::JumpRelative { offset }
             }
             0x1C => Instruction::IncrementE,
             0x20 => {
-                let offset = self.mmu.read(address + 1) as i8;
+                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
                 Instruction::JumpRelativeIfNotZero { offset }
             }
             0x21 => {
@@ -88,6 +88,10 @@ impl Core<'_> {
                 Instruction::LoadHLFrom16Imm { new_value }
             }
             0x23 => Instruction::IncrementHL,
+            0x28 => {
+                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
+                Instruction::JumpRelativeIfZero { offset }
+            }
             0x2A => Instruction::LoadAFromHLAndInc,
             0x31 => {
                 let new_value = self.mmu.read_u16(address + 1);
@@ -102,6 +106,7 @@ impl Core<'_> {
             0x7C => Instruction::LoadAFromH,
             0x7D => Instruction::LoadAFromL,
             0xB1 => Instruction::OrCWithA,
+            0xC1 => Instruction::PopBC,
             0xC3 => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
@@ -136,7 +141,7 @@ impl Core<'_> {
     }
 
     fn execute(&mut self, instruction: Instruction) {
-        self.registers.pc += instruction.size();
+        self.registers.pc = self.registers.pc.wrapping_add(instruction.size());
         match instruction {
             Instruction::Noop => {}
             Instruction::LoadBCFrom16Imm { new_value } => *self.registers.bc.get_mut() = new_value,
@@ -190,6 +195,11 @@ impl Core<'_> {
                 let hl = self.registers.hl.get_mut();
                 *hl = hl.wrapping_add(1);
             }
+            Instruction::JumpRelativeIfZero { offset } => {
+                if self.registers.zero() {
+                    self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
+                }
+            }
             Instruction::LoadAFromHLAndInc => {
                 let byte = self.mmu.read(*self.registers.hl.get());
                 self.registers.a = byte;
@@ -203,6 +213,14 @@ impl Core<'_> {
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::OrCWithA => {
                 self.registers.a = self.registers.a & self.registers.bc.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::PopBC => {
+                *self.registers.bc.get_mut() = self.mmu.read_u16(self.registers.sp);
+                self.registers.sp += 2;
             }
             Instruction::Jump { address } => self.registers.pc = address,
             Instruction::LoadHFromL => {
