@@ -96,6 +96,17 @@ impl Registers {
     pub fn set_carry(&mut self, value: bool) {
         self.f.set(3, value)
     }
+
+    ///Constructs and returns AF
+    pub fn af(&self) -> u16 {
+        u16::from_be_bytes([self.a, self.flags()])
+    }
+
+    pub fn set_af(&mut self, new_value: u16) {
+        let bytes = new_value.to_le_bytes();
+        self.a = bytes[1];
+        self.f.data = [bytes[0] & 0xF0];
+    }
 }
 
 impl Display for Registers {

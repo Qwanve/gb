@@ -82,6 +82,7 @@ impl Core<'_> {
                 let new_value = self.mmu.read_u16(address + 1);
                 Instruction::LoadHLFrom16Imm { new_value }
             }
+            0x23 => Instruction::IncrementHL,
             0x2A => Instruction::LoadAFromHLAndInc,
             0x31 => {
                 let new_value = self.mmu.read_u16(address + 1);
@@ -108,12 +109,15 @@ impl Core<'_> {
                 let address = self.mmu.read(address + 1);
                 Instruction::OutputAToPort { address }
             }
+            0xE1 => Instruction::PopHL,
             0xE5 => Instruction::PushHL,
             0xEA => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::StoreAAt16Imm { address }
             }
+            0xF1 => Instruction::PopAF,
             0xF3 => Instruction::DisableInterrupts,
+            0xF5 => Instruction::PushAF,
             value => todo!(
                 "Unknown instruction {value:#04X} @ {:#06X}",
                 self.registers.pc
@@ -170,6 +174,10 @@ impl Core<'_> {
                 }
             }
             Instruction::LoadHLFrom16Imm { new_value } => *self.registers.hl.get_mut() = new_value,
+            Instruction::IncrementHL => {
+                let hl = self.registers.hl.get_mut();
+                *hl = hl.wrapping_add(1);
+            }
             Instruction::LoadAFromHLAndInc => {
                 let byte = self.mmu.read(*self.registers.hl.get());
                 self.registers.a = byte;
@@ -196,13 +204,27 @@ impl Core<'_> {
                 let address = 0xFF00 + u16::from(address);
                 self.mmu.write(address, self.registers.a)
             }
+            Instruction::PopHL => {
+                *self.registers.hl.get_mut() = self.mmu.read_u16(self.registers.sp);
+                self.registers.sp += 2;
+            }
             Instruction::PushHL => {
+                self.registers.sp -= 2;
                 self.mmu
                     .write_u16(self.registers.sp, *self.registers.hl.get());
-                self.registers.sp -= 2;
             }
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
+            Instruction::PopAF => {
+                let new_value = self.mmu.read_u16(self.registers.sp);
+                self.registers.set_af(new_value);
+                debug_assert_eq!(self.registers.af(), new_value);
+                self.registers.sp += 2;
+            }
             Instruction::DisableInterrupts => self.disable_ime(),
+            Instruction::PushAF => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.af());
+            }
         }
     }
 

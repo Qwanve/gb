@@ -12,6 +12,7 @@ pub enum Instruction {
     IncrementE,
     JumpRelativeIfNotZero { offset: i8 },
     LoadHLFrom16Imm { new_value: u16 },
+    IncrementHL,
     LoadAFromHLAndInc,
     LoadSPFrom16Imm { new_value: u16 },
     LoadAFrom8Imm { new_value: u8 },
@@ -23,9 +24,12 @@ pub enum Instruction {
     Return,
     Call { address: u16 },
     OutputAToPort { address: u8 },
+    PopHL,
     PushHL,
     StoreAAt16Imm { address: u16 },
+    PopAF,
     DisableInterrupts,
+    PushAF,
 }
 
 impl Instruction {
@@ -41,6 +45,7 @@ impl Instruction {
             Instruction::IncrementE => 1,
             Instruction::JumpRelativeIfNotZero { .. } => 2,
             Instruction::LoadHLFrom16Imm { .. } => 3,
+            Instruction::IncrementHL => 1,
             Instruction::LoadAFromHLAndInc => 1,
             Instruction::LoadSPFrom16Imm { .. } => 3,
             Instruction::LoadAFrom8Imm { .. } => 2,
@@ -52,9 +57,12 @@ impl Instruction {
             Instruction::Return => 1,
             Instruction::Call { .. } => 3,
             Instruction::OutputAToPort { .. } => 2,
+            Instruction::PopHL => 1,
             Instruction::PushHL => 1,
             Instruction::StoreAAt16Imm { .. } => 3,
+            Instruction::PopAF => 1,
             Instruction::DisableInterrupts => 1,
+            Instruction::PushAF => 1,
         }
     }
 }
@@ -80,6 +88,7 @@ impl Display for Instruction {
                 mag = offset.abs()
             ),
             Instruction::LoadHLFrom16Imm { new_value } => format!("LD HL, ${new_value:04X}"),
+            Instruction::IncrementHL => format!("INC HL"),
             Instruction::LoadAFromHLAndInc => format!("LD A, (HL+)"),
             Instruction::LoadSPFrom16Imm { new_value } => format!("LD SP, ${new_value:04X}"),
             Instruction::LoadAFrom8Imm { new_value } => format!("LD A, ${new_value:02X}"),
@@ -91,9 +100,12 @@ impl Display for Instruction {
             Instruction::Return => format!("RET"),
             Instruction::Call { address } => format!("CALL ${address:04X}"),
             Instruction::OutputAToPort { address } => format!("LD ${address:02X}, A"),
+            Instruction::PopHL => format!("POP HL"),
             Instruction::PushHL => format!("PUSH HL"),
             Instruction::StoreAAt16Imm { address } => format!("LD ${address:04X}, A"),
+            Instruction::PopAF => format!("POP AF"),
             Instruction::DisableInterrupts => format!("DI"),
+            Instruction::PushAF => format!("PUSH AF"),
         };
         write!(f, "{str}")
     }

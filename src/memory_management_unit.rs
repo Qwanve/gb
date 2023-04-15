@@ -188,7 +188,7 @@ impl MemoryManagementUnit<'_> {
             0xFE00..=0xFE9F => todo!("Write to Sprite Attribute Table"),
             0xFEA0..=0xFEFF => todo!("Write to prohibited area"),
             0xFF00..=0xFF7F => self.write_io_registers(address, value),
-            0xFF80..=0xFFFE => todo!("Write to High RAM"),
+            0xFF80..=0xFFFE => self.hram[(address - 0xFF80) as usize] = value,
             0xFFFF => self.interrupt_enable_register = BitArray::new([value]),
         }
     }
