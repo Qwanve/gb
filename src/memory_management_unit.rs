@@ -132,7 +132,7 @@ impl MemoryManagementUnit<'_> {
             0xFF41 => todo!("Read LCD status"),
             0xFF42 => todo!("Read viewport Y position"),
             0xFF43 => todo!("Read viewport X position"),
-            0xFF44 => todo!("Read LCD Y"),
+            0xFF44 => self.io_registers.lcd_control_and_status.ly,
             0xFF45 => todo!("Read LCD Y compare"),
             0xFF46 => todo!("Read DMA OBJ source address"),
             0xFF47 => todo!("Read BG palette data"),
@@ -245,6 +245,31 @@ impl MemoryManagementUnit<'_> {
     pub fn update_timers(&mut self, clock: u8) {
         self.io_registers.timers.update(clock)
     }
+
+    pub fn io_registers_mut(&mut self) -> &mut IORegisters {
+        &mut self.io_registers
+    }
+    pub fn io_registers(&self) -> &IORegisters {
+        &self.io_registers
+    }
+
+    pub fn request_interrupt(&mut self, interrupt: usize) {
+        debug_assert!(interrupt <= 4);
+        self.interrupt_flag.set(interrupt, true);
+    }
+
+    pub fn acknowledge_interrupt(&mut self, interrupt: usize) {
+        debug_assert!(interrupt <= 4);
+        self.interrupt_flag.set(interrupt, false);
+    }
+
+    pub fn interrupt_enable(&self) -> BitArr!(for 5, in u8, Msb0) {
+        self.interrupt_enable_register
+    }
+
+    pub fn interrupts(&self) -> BitArr!(for 5, in u8, Msb0) {
+        self.interrupt_flag
+    }
 }
 
 struct VRam {
@@ -303,13 +328,38 @@ impl SpriteAttributes {
     }
 }
 
-struct IORegisters {
+pub struct LCDControlAndStatus {
+    //control: bitarr
+    ly: u8,
+    // lyc: u8,
+    // stat: u8,
+}
+
+impl LCDControlAndStatus {
+    fn new() -> Self {
+        //TODO: DMG0 vs DMG?
+        LCDControlAndStatus { ly: 0 }
+    }
+
+    pub fn inc_ly(&mut self) {
+        self.ly += 1;
+        if self.ly > 153 {
+            self.ly = 0;
+        }
+    }
+
+    pub fn ly(&self) -> u8 {
+        self.ly
+    }
+}
+
+pub struct IORegisters {
     joypad: u8,
     serial_transfer: (u8, u8),
     timers: Timers,
     audio: Audio,
     // wave: WavePattern,
-    // lcd_control: LCDControl,
+    lcd_control_and_status: LCDControlAndStatus,
     vram_bank_select: u8,
     boot_rom_disable: bool,
     // vram_dma: VRamDMA,
@@ -324,10 +374,17 @@ impl IORegisters {
             serial_transfer: (0, 0),
             timers: Timers::new(),
             audio: Audio::new(),
+            lcd_control_and_status: LCDControlAndStatus::new(),
             vram_bank_select: 0,
             boot_rom_disable: false,
             wram_bank_select: 0,
         }
+    }
+    pub fn lcd_mut(&mut self) -> &mut LCDControlAndStatus {
+        &mut self.lcd_control_and_status
+    }
+    pub fn lcd(&self) -> &LCDControlAndStatus {
+        &self.lcd_control_and_status
     }
 }
 

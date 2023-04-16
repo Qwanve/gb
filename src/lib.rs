@@ -41,6 +41,7 @@ pub struct Core<'rom> {
     mmu: MemoryManagementUnit<'rom>,
     registers: Registers,
     ime: InterruptMasterEnable,
+    dots: u16,
 }
 
 impl Core<'_> {
@@ -51,6 +52,7 @@ impl Core<'_> {
             mmu,
             registers,
             ime: InterruptMasterEnable::Enabled,
+            dots: 0,
         })
     }
 
@@ -292,6 +294,11 @@ impl Core<'_> {
 
     //TODO: Break reason
     pub fn step(&mut self) -> ControlFlow<(), ()> {
+        self.dots += 4;
+        if self.dots == 456 {
+            self.dots = 0;
+            self.mmu.io_registers_mut().lcd_mut().inc_ly();
+        }
         let instr = self.read_instruction();
         println!("{} | {instr}", self.registers);
         self.execute(instr);
@@ -299,6 +306,21 @@ impl Core<'_> {
         //TODO: Delay
         self.mmu.update_timers(1);
         //TODO: Generate and run interrupts
+        if self.mmu.io_registers().lcd().ly() == 144 {
+            self.mmu.request_interrupt(0);
+        }
+
+        let interrupts = self.mmu.interrupt_enable() & self.mmu.interrupts();
+        if self.ime.is_enabled() && interrupts.any() {
+            for interrupt in interrupts.iter_ones() {
+                debug_assert!(interrupt <= 4);
+                self.mmu.acknowledge_interrupt(interrupt);
+                self.disable_ime();
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x40 + u16::try_from(interrupt).unwrap() * 0x8;
+            }
+        }
         self.update_ime();
         match instr {
             _ => ControlFlow::Continue(()),
