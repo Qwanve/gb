@@ -201,7 +201,7 @@ impl MemoryManagementUnit<'_> {
 
     pub fn write_wram_switchable_bank(&mut self, address: u16, value: u8) {
         let bank_select = self.io_registers.wram_bank_select & 0b111;
-        let mut bank: &mut [u8; 4 * 1024] = match self.wram.other_banks {
+        let bank: &mut [u8; 4 * 1024] = match self.wram.other_banks {
             WRamSwitchableBanks::Gameboy(ref mut bank) => bank,
             WRamSwitchableBanks::GameboyColor(ref mut banks) if bank_select == 0 => &mut banks[1],
             WRamSwitchableBanks::GameboyColor(ref mut banks) => &mut banks[bank_select as usize],

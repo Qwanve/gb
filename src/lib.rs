@@ -102,6 +102,7 @@ impl Core<'_> {
                 Instruction::LoadAFrom8Imm { new_value }
             }
             0x47 => Instruction::LoadBFromA,
+            0x65 => Instruction::LoadHFromL,
             0x78 => Instruction::LoadAFromB,
             0x7C => Instruction::LoadAFromH,
             0x7D => Instruction::LoadAFromL,
@@ -111,12 +112,12 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Jump { address }
             }
-            0xC5 => Instruction::LoadHFromL,
+            0xC5 => Instruction::PushBC,
+            0xC9 => Instruction::Return,
             0xCD => {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::Call { address }
             }
-            0xC9 => Instruction::Return,
             0xE0 => {
                 let address = self.mmu.read(address + 1);
                 Instruction::OutputAToPort { address }
@@ -127,9 +128,17 @@ impl Core<'_> {
                 let address = self.mmu.read_u16(address + 1);
                 Instruction::StoreAAt16Imm { address }
             }
+            0xF0 => {
+                let address = self.mmu.read(address + 1);
+                Instruction::LoadAFromPort { address }
+            }
             0xF1 => Instruction::PopAF,
             0xF3 => Instruction::DisableInterrupts,
             0xF5 => Instruction::PushAF,
+            0xFE => {
+                let value = self.mmu.read(address + 1);
+                Instruction::CompareAWith8Imm { value }
+            }
             value => todo!(
                 "Unknown instruction {value:#04X} @ {:#06X}",
                 self.registers.pc
@@ -226,6 +235,11 @@ impl Core<'_> {
             Instruction::LoadHFromL => {
                 *self.registers.hl.split_mut().high = *self.registers.hl.split().low
             }
+            Instruction::PushBC => {
+                self.registers.sp -= 2;
+                self.mmu
+                    .write_u16(self.registers.sp, *self.registers.bc.get());
+            }
             Instruction::Return => {
                 self.registers.pc = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;
@@ -250,6 +264,10 @@ impl Core<'_> {
                     .write_u16(self.registers.sp, *self.registers.hl.get());
             }
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
+            Instruction::LoadAFromPort { address } => {
+                let address = 0xFF00 + u16::from(address);
+                self.registers.a = self.mmu.read(address);
+            }
             Instruction::PopAF => {
                 let new_value = self.mmu.read_u16(self.registers.sp);
                 self.registers.set_af(new_value);
@@ -260,6 +278,14 @@ impl Core<'_> {
             Instruction::PushAF => {
                 self.registers.sp -= 2;
                 self.mmu.write_u16(self.registers.sp, self.registers.af());
+            }
+            Instruction::CompareAWith8Imm { value } => {
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(value);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(overflow);
+                self.registers.set_carry(overflow);
             }
         }
     }

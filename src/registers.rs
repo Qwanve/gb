@@ -29,6 +29,15 @@ impl Registers {
                 pc: 0x100,
                 sp: 0xFFFE,
             },
+            Model::DMG => Registers {
+                a: 0x01,
+                f: bv::bitarr![u8, bv::Msb0; 1, 0, 1, 1],
+                bc: SplitRegister(0x0013),
+                de: SplitRegister(0x00D8),
+                hl: SplitRegister(0x014D),
+                pc: 0x100,
+                sp: 0xFFFE,
+            },
             _ => todo!("Different model register initial values : {model:?}"),
         }
     }
