@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use instructions::{Instruction, InstructionBuilder, InstructionParseError};
+use instructions::{ComplexInstruction, Instruction, InstructionBuilder, InstructionParseError};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
 
@@ -284,6 +284,7 @@ impl Core<'_> {
                 self.registers.pc = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;
             }
+            Instruction::Complex(ci) => self.execute_complex(ci),
             Instruction::Call { address } => {
                 //TODO: Verify
                 self.registers.sp -= 2;
@@ -350,6 +351,47 @@ impl Core<'_> {
                 //TODO: Verify these flags
                 self.registers.set_half_carry(overflow);
                 self.registers.set_carry(overflow);
+            }
+        }
+    }
+
+    pub fn execute_complex(&mut self, instruction: ComplexInstruction) {
+        match instruction {
+            ComplexInstruction::RotateRightWithCarryC => {
+                let bit7 = (self.registers.carry() as u8) << 7;
+                let c = self.registers.bc.split_mut().low;
+                let bit0 = *c & 0b1 != 0;
+                *c >>= 1;
+                *c |= bit7;
+                let c = self.registers.bc.split().low;
+                self.registers.set_zero(*c == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(bit0);
+            }
+            ComplexInstruction::RotateRightWithCarryD => {
+                let bit7 = (self.registers.carry() as u8) << 7;
+                let d = self.registers.de.split_mut().high;
+                let bit0 = *d & 0b1 != 0;
+                *d >>= 1;
+                *d |= bit7;
+                let d = self.registers.de.split().high;
+                self.registers.set_zero(*d == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(bit0);
+            }
+            ComplexInstruction::ShiftRightLogicalB => {
+                let b = self.registers.bc.split_mut().high;
+                //This seems weird
+                let bit0 = *b & 0b1 != 0;
+                *b >>= 1;
+                let b = self.registers.bc.split().high;
+                self.registers.set_zero(*b == 0);
+                self.registers.set_subtraction(false);
+                //This is right
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(bit0);
             }
         }
     }

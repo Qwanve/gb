@@ -49,6 +49,7 @@ pub enum Instruction {
     PushBC,
     AddAWith8Imm { value: u8 },
     Return,
+    Complex(ComplexInstruction),
     Call { address: u16 },
     PushDE,
     SubtractAWith8Imm { value: u8 },
@@ -63,6 +64,13 @@ pub enum Instruction {
     DisableInterrupts,
     PushAF,
     CompareAWith8Imm { value: u8 },
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum ComplexInstruction {
+    RotateRightWithCarryC,
+    RotateRightWithCarryD,
+    ShiftRightLogicalB,
 }
 
 impl Instruction {
@@ -115,6 +123,7 @@ impl Instruction {
             Instruction::PushBC => 1,
             Instruction::AddAWith8Imm { .. } => 2,
             Instruction::Return => 1,
+            Instruction::Complex(..) => 2,
             Instruction::Call { .. } => 3,
             Instruction::PushDE => 1,
             Instruction::SubtractAWith8Imm { .. } => 2,
@@ -195,6 +204,7 @@ impl Display for Instruction {
             Instruction::PushBC => format!("PUSH BC"),
             Instruction::AddAWith8Imm { value } => format!("ADD A, ${value:02X}"),
             Instruction::Return => format!("RET"),
+            Instruction::Complex(ci) => format!("{ci}"),
             Instruction::Call { address } => format!("CALL ${address:04X}"),
             Instruction::PushDE => format!("PUSH DE"),
             Instruction::SubtractAWith8Imm { value } => format!("SUB A, ${value:02X}"),
@@ -209,6 +219,17 @@ impl Display for Instruction {
             Instruction::DisableInterrupts => format!("DI"),
             Instruction::PushAF => format!("PUSH AF"),
             Instruction::CompareAWith8Imm { value } => format!("CP ${value:02X}"),
+        };
+        write!(f, "{str}")
+    }
+}
+
+impl Display for ComplexInstruction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            ComplexInstruction::RotateRightWithCarryC => format!("RR C"),
+            ComplexInstruction::RotateRightWithCarryD => format!("RR D"),
+            ComplexInstruction::ShiftRightLogicalB => format!("SRL B"),
         };
         write!(f, "{str}")
     }
@@ -327,7 +348,7 @@ impl InstructionBuilder {
                 Instruction::AddAWith8Imm { value }
             }
             0xC9 => Instruction::Return,
-            0xCB => InstructionBuilder::parse_complex(self.u8_imm())?,
+            0xCB => Instruction::Complex(InstructionBuilder::parse_complex(self.u8_imm())?),
             0xCD => {
                 let address = self.u16_imm();
                 Instruction::Call { address }
@@ -370,9 +391,12 @@ impl InstructionBuilder {
         })
     }
 
-    pub fn parse_complex(op_code: u8) -> Result<Instruction, InstructionParseError> {
-        match op_code {
+    pub fn parse_complex(op_code: u8) -> Result<ComplexInstruction, InstructionParseError> {
+        Ok(match op_code {
+            0x19 => ComplexInstruction::RotateRightWithCarryC,
+            0x1A => ComplexInstruction::RotateRightWithCarryD,
+            0x38 => ComplexInstruction::ShiftRightLogicalB,
             value => Err(InstructionParseError::UnknownComplexInstruction(value))?,
-        }
+        })
     }
 }
