@@ -180,7 +180,11 @@ impl MemoryManagementUnit<'_> {
         match address {
             0x0000..=0x3FFF => todo!("Write to cartridge"),
             0x4000..=0x7FFF => todo!("Write to cartridge"),
-            0x8000..=0x9FFF => todo!("Write to VRAM"),
+            0x8000..=0x9FFF => {
+                if !self.vram.locked {
+                    self.write_vram(address, value);
+                }
+            }
             0xA000..=0xBFFF => todo!("Write to External Ram"),
             0xC000..=0xCFFF => self.wram.bank_zero[(address - 0xC000) as usize] = value,
             0xD000..=0xDFFF => self.write_wram_switchable_bank(address, value),
@@ -207,6 +211,16 @@ impl MemoryManagementUnit<'_> {
             WRamSwitchableBanks::GameboyColor(ref mut banks) => &mut banks[bank_select as usize],
         };
         bank[(address - 0xD000) as usize] = value;
+    }
+
+    pub fn write_vram(&mut self, address: u16, value: u8) {
+        if self.io_registers.vram_bank_select & 0b1 == 0 {
+            self.vram.bank_zero[(address - 0x8000) as usize] = value;
+        } else if let Some(ref mut bank) = self.vram.bank_one {
+            bank[(address - 0x8000) as usize] = value;
+        } else {
+            todo!("Accessing a non-existent vram bank");
+        }
     }
 
     pub fn write_io_registers(&mut self, address: u16, value: u8) {
@@ -237,6 +251,18 @@ impl MemoryManagementUnit<'_> {
                 } else {
                     self.io_registers.audio.disable()
                 }
+            }
+            0xFF40 => {
+                self.io_registers.lcd_control_and_status.control = BitArray::new([value]);
+            }
+            0xFF42 => {
+                self.io_registers.lcd_control_and_status.scy = value;
+            }
+            0xFF43 => {
+                self.io_registers.lcd_control_and_status.scx = value;
+            }
+            0xFF47 => {
+                self.io_registers.background_palette_data = BackgroundPaletteData::from(value)
             }
             _ => todo!("Write to I/O register ${address:04X}"),
         }
@@ -270,9 +296,18 @@ impl MemoryManagementUnit<'_> {
     pub fn interrupts(&self) -> BitArr!(for 5, in u8, Msb0) {
         self.interrupt_flag
     }
+
+    pub fn lock_vram(&mut self) {
+        self.vram.lock()
+    }
+
+    pub fn unlock_vram(&mut self) {
+        self.vram.unlock()
+    }
 }
 
 struct VRam {
+    locked: bool,
     bank_zero: [u8; 8 * 1024],
     bank_one: Option<[u8; 8 * 1024]>,
 }
@@ -280,9 +315,18 @@ struct VRam {
 impl VRam {
     fn new(gbc: bool) -> Self {
         VRam {
+            locked: false,
             bank_zero: [0; 8 * 1024],
             bank_one: if gbc { Some([0; 8 * 1024]) } else { None },
         }
+    }
+
+    pub fn lock(&mut self) {
+        self.locked = true;
+    }
+
+    pub fn unlock(&mut self) {
+        self.locked = false;
     }
 }
 
@@ -329,8 +373,10 @@ impl SpriteAttributes {
 }
 
 pub struct LCDControlAndStatus {
-    //control: bitarr
+    control: BitArr!(for 8, in u8, Msb0),
     ly: u8,
+    scx: u8,
+    scy: u8,
     // lyc: u8,
     // stat: u8,
 }
@@ -338,7 +384,12 @@ pub struct LCDControlAndStatus {
 impl LCDControlAndStatus {
     fn new() -> Self {
         //TODO: DMG0 vs DMG?
-        LCDControlAndStatus { ly: 0 }
+        LCDControlAndStatus {
+            ly: 0,
+            scx: 0,
+            scy: 0,
+            control: BitArray::new([0x91]),
+        }
     }
 
     pub fn inc_ly(&mut self) {
@@ -350,6 +401,47 @@ impl LCDControlAndStatus {
 
     pub fn ly(&self) -> u8 {
         self.ly
+    }
+}
+
+#[derive(Debug)]
+enum Color {
+    White = 0,
+    LightGrey = 1,
+    DarkGrey = 2,
+    Black = 3,
+}
+
+impl TryFrom<u8> for Color {
+    type Error = ();
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Color::White),
+            1 => Ok(Color::LightGrey),
+            2 => Ok(Color::DarkGrey),
+            3 => Ok(Color::Black),
+            _ => Err(()),
+        }
+    }
+}
+
+struct BackgroundPaletteData([Color; 4]);
+
+impl From<u8> for BackgroundPaletteData {
+    fn from(value: u8) -> Self {
+        BackgroundPaletteData(
+            value
+                .view_bits::<Msb0>()
+                .chunks_exact(2)
+                .map(|bits| {
+                    let color = (bits[0] as u8) << 1 & bits[1] as u8;
+                    Color::try_from(color).unwrap()
+                })
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        )
     }
 }
 
@@ -365,6 +457,7 @@ pub struct IORegisters {
     // vram_dma: VRamDMA,
     // palettes: Pallets,
     wram_bank_select: u8,
+    background_palette_data: BackgroundPaletteData,
 }
 
 impl IORegisters {
@@ -378,6 +471,7 @@ impl IORegisters {
             vram_bank_select: 0,
             boot_rom_disable: false,
             wram_bank_select: 0,
+            background_palette_data: BackgroundPaletteData::from(0),
         }
     }
     pub fn lcd_mut(&mut self) -> &mut LCDControlAndStatus {
