@@ -1,6 +1,6 @@
 use std::ops::ControlFlow;
 
-use instructions::Instruction;
+use instructions::{Instruction, InstructionBuilder, InstructionParseError};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
 
@@ -58,138 +58,23 @@ impl Core<'_> {
 
     fn read_instruction_at(&self, address: u16) -> Instruction {
         let byte = self.mmu.read(address);
-        match byte {
-            0x00 => Instruction::Noop,
-            0x01 => {
-                let new_value = self.mmu.read_u16(address + 1);
-                Instruction::LoadBCFrom16Imm { new_value }
+        let imm_1 = self.mmu.read(address + 1);
+        let imm_2 = self.mmu.read(address + 2);
+        let res = InstructionBuilder::new([byte, imm_1, imm_2]).parse();
+        match res {
+            Ok(instr) => instr,
+            Err(InstructionParseError::UnknownInstruction(v)) => {
+                todo!("Unknown instruction {v:#02X} @ {:#04X}", self.registers.pc)
             }
-            0x03 => Instruction::IncrementBC,
-            0x05 => Instruction::DecrementB,
-            0x06 => {
-                let new_value = self.mmu.read(address + 1);
-                Instruction::LoadBFrom8Imm { new_value }
+            Err(InstructionParseError::UnknownComplexInstruction(v)) => {
+                todo!(
+                    "Unknown complex instruction 0xCB {v:#02X} @ {:#04X}",
+                    self.registers.pc
+                )
             }
-            0x0D => Instruction::DecrementC,
-            0x0E => {
-                let new_value = self.mmu.read(address + 1);
-                Instruction::LoadCFrom8Imm { new_value }
+            Err(InstructionParseError::IllegalInstruction(v)) => {
+                panic!("Illegal Instruction {v:#02X} @ {:#04X}", self.registers.pc)
             }
-            0x11 => {
-                let new_value = self.mmu.read_u16(address + 1);
-                Instruction::LoadDEFrom16Imm { new_value }
-            }
-            0x12 => Instruction::StoreAAtDE,
-            0x13 => Instruction::IncrementDE,
-            0x14 => Instruction::IncrementD,
-            0x18 => {
-                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
-                Instruction::JumpRelative { offset }
-            }
-            0x1A => Instruction::LoadAFromDE,
-            0x1C => Instruction::IncrementE,
-            0x20 => {
-                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
-                Instruction::JumpRelativeIfNotZero { offset }
-            }
-            0x21 => {
-                let new_value = self.mmu.read_u16(address + 1);
-                Instruction::LoadHLFrom16Imm { new_value }
-            }
-            0x22 => Instruction::StoreAAtHLAndIncrement,
-            0x23 => Instruction::IncrementHL,
-            0x24 => Instruction::IncrementH,
-            0x26 => {
-                let new_value = self.mmu.read(address + 1);
-                Instruction::LoadHFrom8Imm { new_value }
-            }
-            0x28 => {
-                let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
-                Instruction::JumpRelativeIfZero { offset }
-            }
-            0x2A => Instruction::LoadAFromHLAndInc,
-            0x2C => Instruction::IncrementL,
-            0x2D => Instruction::DecrementL,
-            0x31 => {
-                let new_value = self.mmu.read_u16(address + 1);
-                Instruction::LoadSPFrom16Imm { new_value }
-            }
-            0x32 => Instruction::StoreAAtHLAndDecrement,
-            0x3E => {
-                let new_value = self.mmu.read(address + 1);
-                Instruction::LoadAFrom8Imm { new_value }
-            }
-            0x46 => Instruction::LoadBFromHL,
-            0x47 => Instruction::LoadBFromA,
-            0x4D => Instruction::LoadCFromL,
-            0x4E => Instruction::LoadCFromHL,
-            0x56 => Instruction::LoadDFromHL,
-            0x65 => Instruction::LoadHFromL,
-            0x77 => Instruction::StoreAAtHL,
-            0x78 => Instruction::LoadAFromB,
-            0x7C => Instruction::LoadAFromH,
-            0x7D => Instruction::LoadAFromL,
-            0xA9 => Instruction::XorCWithA,
-            0xAE => Instruction::XorHLWithA,
-            0xB1 => Instruction::OrCWithA,
-            0xB7 => Instruction::OrAWithA,
-            0xC1 => Instruction::PopBC,
-            0xC3 => {
-                let address = self.mmu.read_u16(address + 1);
-                Instruction::Jump { address }
-            }
-            0xC4 => {
-                let address = self.mmu.read_u16(address + 1);
-                Instruction::CallIfNotZero { address }
-            }
-            0xC5 => Instruction::PushBC,
-            0xC6 => {
-                let value = self.mmu.read(address + 1);
-                Instruction::AddAWith8Imm { value }
-            }
-            0xC9 => Instruction::Return,
-            0xCD => {
-                let address = self.mmu.read_u16(address + 1);
-                Instruction::Call { address }
-            }
-            0xD5 => Instruction::PushDE,
-            0xD6 => {
-                let value = self.mmu.read(address + 1);
-                Instruction::SubtractAWith8Imm { value }
-            }
-            0xE0 => {
-                let address = self.mmu.read(address + 1);
-                Instruction::OutputAToPort { address }
-            }
-            0xE1 => Instruction::PopHL,
-            0xE5 => Instruction::PushHL,
-            0xE6 => {
-                let value = self.mmu.read(address + 1);
-                Instruction::AndAWith8Imm { value }
-            }
-            0xEA => {
-                let address = self.mmu.read_u16(address + 1);
-                Instruction::StoreAAt16Imm { address }
-            }
-            0xF0 => {
-                let address = self.mmu.read(address + 1);
-                Instruction::LoadAFromPort { address }
-            }
-            0xF1 => Instruction::PopAF,
-            0xF3 => Instruction::DisableInterrupts,
-            0xF5 => Instruction::PushAF,
-            0xFA => {
-                let address = self.mmu.read_u16(address + 1);
-                Instruction::LoadAFrom16Imm { address }
-            }
-            0xFE => {
-                let value = self.mmu.read(address + 1);
-                Instruction::CompareAWith8Imm { value }
-            }
-            value => todo!(
-                "Unknown instruction {value:#04X} @ {:#06X}",
-                self.registers.pc
-            ),
         }
     }
     fn read_instruction(&mut self) -> Instruction {

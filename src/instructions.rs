@@ -213,3 +213,166 @@ impl Display for Instruction {
         write!(f, "{str}")
     }
 }
+
+pub struct InstructionBuilder([u8; 3]);
+
+pub enum InstructionParseError {
+    UnknownInstruction(u8),
+    UnknownComplexInstruction(u8),
+    IllegalInstruction(u8),
+}
+
+impl InstructionBuilder {
+    pub fn new(value: [u8; 3]) -> Self {
+        InstructionBuilder(value)
+    }
+    pub fn s8_imm(&self) -> i8 {
+        i8::from_le_bytes([self.0[1]])
+    }
+    pub fn u8_imm(&self) -> u8 {
+        u8::from_le_bytes([self.0[1]])
+    }
+    pub fn u16_imm(&self) -> u16 {
+        u16::from_le_bytes([self.0[1], self.0[2]])
+    }
+
+    pub fn parse(self) -> Result<Instruction, InstructionParseError> {
+        Ok(match self.0[0] {
+            0x00 => Instruction::Noop,
+            0x01 => {
+                let new_value = self.u16_imm();
+                Instruction::LoadBCFrom16Imm { new_value }
+            }
+            0x03 => Instruction::IncrementBC,
+            0x05 => Instruction::DecrementB,
+            0x06 => {
+                let new_value = self.u8_imm();
+                Instruction::LoadBFrom8Imm { new_value }
+            }
+            0x0D => Instruction::DecrementC,
+            0x0E => {
+                let new_value = self.u8_imm();
+                Instruction::LoadCFrom8Imm { new_value }
+            }
+            0x11 => {
+                let new_value = self.u16_imm();
+                Instruction::LoadDEFrom16Imm { new_value }
+            }
+            0x12 => Instruction::StoreAAtDE,
+            0x13 => Instruction::IncrementDE,
+            0x14 => Instruction::IncrementD,
+            0x18 => {
+                let offset = self.s8_imm();
+                Instruction::JumpRelative { offset }
+            }
+            0x1A => Instruction::LoadAFromDE,
+            0x1C => Instruction::IncrementE,
+            0x20 => {
+                let offset = self.s8_imm();
+                Instruction::JumpRelativeIfNotZero { offset }
+            }
+            0x21 => {
+                let new_value = self.u16_imm();
+                Instruction::LoadHLFrom16Imm { new_value }
+            }
+            0x22 => Instruction::StoreAAtHLAndIncrement,
+            0x23 => Instruction::IncrementHL,
+            0x24 => Instruction::IncrementH,
+            0x26 => {
+                let new_value = self.u8_imm();
+                Instruction::LoadHFrom8Imm { new_value }
+            }
+            0x28 => {
+                let offset = self.s8_imm();
+                Instruction::JumpRelativeIfZero { offset }
+            }
+            0x2A => Instruction::LoadAFromHLAndInc,
+            0x2C => Instruction::IncrementL,
+            0x2D => Instruction::DecrementL,
+            0x31 => {
+                let new_value = self.u16_imm();
+                Instruction::LoadSPFrom16Imm { new_value }
+            }
+            0x32 => Instruction::StoreAAtHLAndDecrement,
+            0x3E => {
+                let new_value = self.u8_imm();
+                Instruction::LoadAFrom8Imm { new_value }
+            }
+            0x46 => Instruction::LoadBFromHL,
+            0x47 => Instruction::LoadBFromA,
+            0x4D => Instruction::LoadCFromL,
+            0x4E => Instruction::LoadCFromHL,
+            0x56 => Instruction::LoadDFromHL,
+            0x65 => Instruction::LoadHFromL,
+            0x77 => Instruction::StoreAAtHL,
+            0x78 => Instruction::LoadAFromB,
+            0x7C => Instruction::LoadAFromH,
+            0x7D => Instruction::LoadAFromL,
+            0xA9 => Instruction::XorCWithA,
+            0xAE => Instruction::XorHLWithA,
+            0xB1 => Instruction::OrCWithA,
+            0xB7 => Instruction::OrAWithA,
+            0xC1 => Instruction::PopBC,
+            0xC3 => {
+                let address = self.u16_imm();
+                Instruction::Jump { address }
+            }
+            0xC4 => {
+                let address = self.u16_imm();
+                Instruction::CallIfNotZero { address }
+            }
+            0xC5 => Instruction::PushBC,
+            0xC6 => {
+                let value = self.u8_imm();
+                Instruction::AddAWith8Imm { value }
+            }
+            0xC9 => Instruction::Return,
+            0xCB => InstructionBuilder::parse_complex(self.u8_imm())?,
+            0xCD => {
+                let address = self.u16_imm();
+                Instruction::Call { address }
+            }
+            0xD5 => Instruction::PushDE,
+            0xD6 => {
+                let value = self.u8_imm();
+                Instruction::SubtractAWith8Imm { value }
+            }
+            0xE0 => {
+                let address = self.u8_imm();
+                Instruction::OutputAToPort { address }
+            }
+            0xE1 => Instruction::PopHL,
+            0xE5 => Instruction::PushHL,
+            0xE6 => {
+                let value = self.u8_imm();
+                Instruction::AndAWith8Imm { value }
+            }
+            0xEA => {
+                let address = self.u16_imm();
+                Instruction::StoreAAt16Imm { address }
+            }
+            0xF0 => {
+                let address = self.u8_imm();
+                Instruction::LoadAFromPort { address }
+            }
+            0xF1 => Instruction::PopAF,
+            0xF3 => Instruction::DisableInterrupts,
+            0xF5 => Instruction::PushAF,
+            0xFA => {
+                let address = self.u16_imm();
+                Instruction::LoadAFrom16Imm { address }
+            }
+            0xFE => {
+                let value = self.u8_imm();
+                Instruction::CompareAWith8Imm { value }
+            }
+            value => Err(InstructionParseError::UnknownInstruction(value))?,
+        })
+    }
+
+    pub fn parse_complex(op_code: u8) -> Result<Instruction, InstructionParseError> {
+        match op_code {
+            value => Err(InstructionParseError::UnknownComplexInstruction(value))?,
+        }
+    }
+}
