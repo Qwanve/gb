@@ -99,6 +99,10 @@ impl Core<'_> {
             0x22 => Instruction::StoreAAtHLAndIncrement,
             0x23 => Instruction::IncrementHL,
             0x24 => Instruction::IncrementH,
+            0x26 => {
+                let new_value = self.mmu.read(address + 1);
+                Instruction::LoadHFrom8Imm { new_value }
+            }
             0x28 => {
                 let offset = i8::from_be_bytes([self.mmu.read(address + 1)]);
                 Instruction::JumpRelativeIfZero { offset }
@@ -119,12 +123,14 @@ impl Core<'_> {
             0x47 => Instruction::LoadBFromA,
             0x4D => Instruction::LoadCFromL,
             0x4E => Instruction::LoadCFromHL,
+            0x56 => Instruction::LoadDFromHL,
             0x65 => Instruction::LoadHFromL,
             0x77 => Instruction::StoreAAtHL,
             0x78 => Instruction::LoadAFromB,
             0x7C => Instruction::LoadAFromH,
             0x7D => Instruction::LoadAFromL,
             0xA9 => Instruction::XorCWithA,
+            0xAE => Instruction::XorHLWithA,
             0xB1 => Instruction::OrCWithA,
             0xB7 => Instruction::OrAWithA,
             0xC1 => Instruction::PopBC,
@@ -278,6 +284,9 @@ impl Core<'_> {
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(half_carry);
             }
+            Instruction::LoadHFrom8Imm { new_value } => {
+                *self.registers.hl.split_mut().high = new_value;
+            }
             Instruction::JumpRelativeIfZero { offset } => {
                 if self.registers.zero() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
@@ -321,12 +330,23 @@ impl Core<'_> {
                 let new_value = self.mmu.read(*self.registers.hl.get());
                 *self.registers.bc.split_mut().low = new_value;
             }
+            Instruction::LoadDFromHL => {
+                let new_value = self.mmu.read(*self.registers.hl.get());
+                *self.registers.de.split_mut().high = new_value;
+            }
             Instruction::StoreAAtHL => self.mmu.write(*self.registers.hl.get(), self.registers.a),
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().high,
             Instruction::LoadAFromH => self.registers.a = *self.registers.hl.split().high,
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::XorCWithA => {
                 self.registers.a ^= self.registers.bc.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::XorHLWithA => {
+                self.registers.a ^= self.mmu.read(*self.registers.hl.get());
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
