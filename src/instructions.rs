@@ -16,6 +16,7 @@ pub enum Instruction {
     JumpRelative { offset: i8 },
     LoadAFromDE,
     IncrementE,
+    DecrementE,
     RotateRightWithCarryA,
     JumpRelativeIfNotZero { offset: i8 },
     LoadHLFrom16Imm { new_value: u16 },
@@ -25,12 +26,15 @@ pub enum Instruction {
     DecrementH,
     LoadHFrom8Imm { new_value: u8 },
     JumpRelativeIfZero { offset: i8 },
+    AddHLWithHL,
     LoadAFromHLAndInc,
     IncrementL,
     DecrementL,
     JumpRelativeIfNotCarry { offset: i8 },
     LoadSPFrom16Imm { new_value: u16 },
     StoreAAtHLAndDecrement,
+    DecrementAtHL,
+    DecrementA,
     LoadAFrom8Imm { new_value: u8 },
     LoadBFromHL,
     LoadBFromA,
@@ -41,6 +45,8 @@ pub enum Instruction {
     LoadDFromA,
     LoadEFromA,
     LoadHFromL,
+    LoadLFromHL,
+    LoadLFromA,
     StoreBAtHL,
     StoreCAtHL,
     StoreDAtHL,
@@ -54,15 +60,19 @@ pub enum Instruction {
     XorCWithA,
     XorHLWithA,
     OrCWithA,
+    OrHLWithA,
     OrAWithA,
     PopBC,
     Jump { address: u16 },
     CallIfNotZero { address: u16 },
     PushBC,
     AddAWith8Imm { value: u8 },
+    ReturnIfZero,
     Return,
     Complex(ComplexInstruction),
     Call { address: u16 },
+    AddWithCarryAWith8Imm { value: u8 },
+    ReturnIfNotCarry,
     PopDE,
     PushDE,
     SubtractAWith8Imm { value: u8 },
@@ -70,6 +80,7 @@ pub enum Instruction {
     PopHL,
     PushHL,
     AndAWith8Imm { value: u8 },
+    JumpHL,
     StoreAAt16Imm { address: u16 },
     Xor8ImmWithA { value: u8 },
     LoadAFromPort { address: u8 },
@@ -104,6 +115,7 @@ impl Instruction {
             Instruction::JumpRelative { .. } => 2,
             Instruction::LoadAFromDE => 1,
             Instruction::IncrementE => 1,
+            Instruction::DecrementE => 1,
             Instruction::RotateRightWithCarryA => 1,
             Instruction::JumpRelativeIfNotZero { .. } => 2,
             Instruction::LoadHLFrom16Imm { .. } => 3,
@@ -113,12 +125,15 @@ impl Instruction {
             Instruction::DecrementH => 1,
             Instruction::LoadHFrom8Imm { .. } => 2,
             Instruction::JumpRelativeIfZero { .. } => 2,
+            Instruction::AddHLWithHL => 1,
             Instruction::LoadAFromHLAndInc => 1,
             Instruction::IncrementL => 1,
             Instruction::DecrementL => 1,
             Instruction::JumpRelativeIfNotCarry { .. } => 2,
             Instruction::LoadSPFrom16Imm { .. } => 3,
             Instruction::StoreAAtHLAndDecrement => 1,
+            Instruction::DecrementAtHL => 1,
+            Instruction::DecrementA => 1,
             Instruction::LoadAFrom8Imm { .. } => 2,
             Instruction::LoadBFromHL => 1,
             Instruction::LoadBFromA => 1,
@@ -129,6 +144,8 @@ impl Instruction {
             Instruction::LoadDFromA => 1,
             Instruction::LoadEFromA => 1,
             Instruction::LoadHFromL => 1,
+            Instruction::LoadLFromHL => 1,
+            Instruction::LoadLFromA => 1,
             Instruction::StoreBAtHL => 1,
             Instruction::StoreCAtHL => 1,
             Instruction::StoreDAtHL => 1,
@@ -142,15 +159,19 @@ impl Instruction {
             Instruction::XorCWithA => 1,
             Instruction::XorHLWithA => 1,
             Instruction::OrCWithA => 1,
+            Instruction::OrHLWithA => 1,
             Instruction::OrAWithA => 1,
             Instruction::PopBC => 1,
             Instruction::Jump { .. } => 3,
             Instruction::CallIfNotZero { .. } => 3,
             Instruction::PushBC => 1,
             Instruction::AddAWith8Imm { .. } => 2,
+            Instruction::ReturnIfZero => 1,
             Instruction::Return => 1,
             Instruction::Complex(..) => 2,
             Instruction::Call { .. } => 3,
+            Instruction::AddWithCarryAWith8Imm { .. } => 2,
+            Instruction::ReturnIfNotCarry => 1,
             Instruction::PopDE => 1,
             Instruction::PushDE => 1,
             Instruction::SubtractAWith8Imm { .. } => 2,
@@ -158,6 +179,7 @@ impl Instruction {
             Instruction::PopHL => 1,
             Instruction::PushHL => 1,
             Instruction::AndAWith8Imm { .. } => 2,
+            Instruction::JumpHL => 1,
             Instruction::StoreAAt16Imm { .. } => 3,
             Instruction::Xor8ImmWithA { .. } => 2,
             Instruction::LoadAFromPort { .. } => 2,
@@ -191,6 +213,7 @@ impl Display for Instruction {
             ),
             Instruction::LoadAFromDE => format!("LD A, (DE)"),
             Instruction::IncrementE => format!("INC E"),
+            Instruction::DecrementE => format!("DEC E"),
             Instruction::RotateRightWithCarryA => format!("RRA"),
             Instruction::JumpRelativeIfNotZero { offset } => format!(
                 "JR NZ, {sign}{mag:#X}",
@@ -208,6 +231,7 @@ impl Display for Instruction {
                 sign = if offset.is_negative() { '-' } else { '+' },
                 mag = offset.abs()
             ),
+            Instruction::AddHLWithHL => format!("ADD HL, HL"),
             Instruction::LoadAFromHLAndInc => format!("LD A, (HL+)"),
             Instruction::IncrementL => format!("INC L"),
             Instruction::DecrementL => format!("DEC L"),
@@ -218,6 +242,8 @@ impl Display for Instruction {
             ),
             Instruction::LoadSPFrom16Imm { new_value } => format!("LD SP, ${new_value:04X}"),
             Instruction::StoreAAtHLAndDecrement => format!("LD (HL-), A"),
+            Instruction::DecrementAtHL => format!("DEC (HL)"),
+            Instruction::DecrementA => format!("DEC A"),
             Instruction::LoadAFrom8Imm { new_value } => format!("LD A, ${new_value:02X}"),
             Instruction::LoadBFromHL => format!("LD B, (HL)"),
             Instruction::LoadBFromA => format!("LD B, A"),
@@ -228,6 +254,8 @@ impl Display for Instruction {
             Instruction::LoadDFromA => format!("LD D, A"),
             Instruction::LoadEFromA => format!("LD E, A"),
             Instruction::LoadHFromL => format!("LD H, L"),
+            Instruction::LoadLFromHL => format!("LD L, (HL)"),
+            Instruction::LoadLFromA => format!("LD L, A"),
             Instruction::StoreBAtHL => format!("LD (HL), B"),
             Instruction::StoreCAtHL => format!("LD (HL), C"),
             Instruction::StoreDAtHL => format!("LD (HL), D"),
@@ -241,15 +269,19 @@ impl Display for Instruction {
             Instruction::XorCWithA => format!("XOR C"),
             Instruction::XorHLWithA => format!("XOR (HL)"),
             Instruction::OrCWithA => format!("OR C"),
+            Instruction::OrHLWithA => format!("OR (HL), A"),
             Instruction::OrAWithA => format!("OR A"),
             Instruction::PopBC => format!("POP BC"),
             Instruction::Jump { address } => format!("JP ${address:04X}"),
             Instruction::CallIfNotZero { address } => format!("CALL NZ, ${address:04X}"),
             Instruction::PushBC => format!("PUSH BC"),
             Instruction::AddAWith8Imm { value } => format!("ADD A, ${value:02X}"),
+            Instruction::ReturnIfZero => format!("RET Z"),
             Instruction::Return => format!("RET"),
             Instruction::Complex(ci) => format!("{ci}"),
             Instruction::Call { address } => format!("CALL ${address:04X}"),
+            Instruction::AddWithCarryAWith8Imm { value } => format!("ADC A, ${value:02X}"),
+            Instruction::ReturnIfNotCarry => format!("RET NC"),
             Instruction::PopDE => format!("POP DE"),
             Instruction::PushDE => format!("PUSH DE"),
             Instruction::SubtractAWith8Imm { value } => format!("SUB A, ${value:02X}"),
@@ -257,6 +289,7 @@ impl Display for Instruction {
             Instruction::PopHL => format!("POP HL"),
             Instruction::PushHL => format!("PUSH HL"),
             Instruction::AndAWith8Imm { value } => format!("AND ${value:02X}"),
+            Instruction::JumpHL => format!("JP HL"),
             Instruction::StoreAAt16Imm { address } => format!("LD ${address:04X}, A"),
             Instruction::Xor8ImmWithA { value } => format!("XOR ${value:02X}"),
             Instruction::LoadAFromPort { address } => format!("LD A, ${address:02X}"),
@@ -334,6 +367,7 @@ impl InstructionBuilder {
             }
             0x1A => Instruction::LoadAFromDE,
             0x1C => Instruction::IncrementE,
+            0x1D => Instruction::DecrementE,
             0x1F => Instruction::RotateRightWithCarryA,
             0x20 => {
                 let offset = self.s8_imm();
@@ -355,6 +389,7 @@ impl InstructionBuilder {
                 let offset = self.s8_imm();
                 Instruction::JumpRelativeIfZero { offset }
             }
+            0x29 => Instruction::AddHLWithHL,
             0x2A => Instruction::LoadAFromHLAndInc,
             0x2C => Instruction::IncrementL,
             0x2D => Instruction::DecrementL,
@@ -367,6 +402,8 @@ impl InstructionBuilder {
                 Instruction::LoadSPFrom16Imm { new_value }
             }
             0x32 => Instruction::StoreAAtHLAndDecrement,
+            0x35 => Instruction::DecrementAtHL,
+            0x3D => Instruction::DecrementA,
             0x3E => {
                 let new_value = self.u8_imm();
                 Instruction::LoadAFrom8Imm { new_value }
@@ -380,6 +417,8 @@ impl InstructionBuilder {
             0x57 => Instruction::LoadDFromA,
             0x5F => Instruction::LoadEFromA,
             0x65 => Instruction::LoadHFromL,
+            0x6E => Instruction::LoadLFromHL,
+            0x6F => Instruction::LoadLFromA,
             0x70 => Instruction::StoreBAtHL,
             0x71 => Instruction::StoreCAtHL,
             0x72 => Instruction::StoreDAtHL,
@@ -393,6 +432,7 @@ impl InstructionBuilder {
             0xA9 => Instruction::XorCWithA,
             0xAE => Instruction::XorHLWithA,
             0xB1 => Instruction::OrCWithA,
+            0xB6 => Instruction::OrHLWithA,
             0xB7 => Instruction::OrAWithA,
             0xC1 => Instruction::PopBC,
             0xC3 => {
@@ -408,12 +448,18 @@ impl InstructionBuilder {
                 let value = self.u8_imm();
                 Instruction::AddAWith8Imm { value }
             }
+            0xC8 => Instruction::ReturnIfZero,
             0xC9 => Instruction::Return,
             0xCB => Instruction::Complex(InstructionBuilder::parse_complex(self.u8_imm())?),
             0xCD => {
                 let address = self.u16_imm();
                 Instruction::Call { address }
             }
+            0xCE => {
+                let value = self.u8_imm();
+                Instruction::AddWithCarryAWith8Imm { value }
+            }
+            0xD0 => Instruction::ReturnIfNotCarry,
             0xD1 => Instruction::PopDE,
             0xD5 => Instruction::PushDE,
             0xD6 => {
@@ -430,6 +476,7 @@ impl InstructionBuilder {
                 let value = self.u8_imm();
                 Instruction::AndAWith8Imm { value }
             }
+            0xE9 => Instruction::JumpHL,
             0xEA => {
                 let address = self.u16_imm();
                 Instruction::StoreAAt16Imm { address }
