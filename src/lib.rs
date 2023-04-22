@@ -207,6 +207,11 @@ impl Core<'_> {
                 self.registers.set_subtraction(true);
                 self.registers.set_half_carry(half_carry);
             }
+            Instruction::JumpRelativeIfNotCarry { offset } => {
+                if !self.registers.carry() {
+                    self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
+                }
+            }
             Instruction::LoadSPFrom16Imm { new_value } => self.registers.sp = new_value,
             Instruction::StoreAAtHLAndDecrement => {
                 let hl = self.registers.hl.get_mut();

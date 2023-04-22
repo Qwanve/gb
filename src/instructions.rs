@@ -186,6 +186,11 @@ impl Display for Instruction {
             Instruction::LoadAFromHLAndInc => format!("LD A, (HL+)"),
             Instruction::IncrementL => format!("INC L"),
             Instruction::DecrementL => format!("DEC L"),
+            Instruction::JumpRelativeIfNotCarry { offset } => format!(
+                "JR NC, {sign}{mag:#X}",
+                sign = if offset.is_negative() { '-' } else { '+' },
+                mag = offset.abs()
+            ),
             Instruction::LoadSPFrom16Imm { new_value } => format!("LD SP, ${new_value:04X}"),
             Instruction::StoreAAtHLAndDecrement => format!("LD (HL-), A"),
             Instruction::LoadAFrom8Imm { new_value } => format!("LD A, ${new_value:02X}"),
