@@ -1,3 +1,5 @@
+use std::ops::ControlFlow;
+
 use super::cartridge::{Cartridge, CartridgeParseError};
 use bitvec::{bitarr, field::BitField, order::Msb0, prelude::BitArray, view::BitView, BitArr};
 use thiserror::Error;
@@ -226,6 +228,16 @@ impl MemoryManagementUnit<'_> {
     pub fn write_io_registers(&mut self, address: u16, value: u8) {
         match address {
             0x0000..=0xFEFF | 0xFF80..=0xFFFF => unreachable!(),
+            0xFF01 => self.io_registers.serial_transfer.write(value),
+            0xFF02 => {
+                let control: BitArray<_, Msb0> = BitArray::new([value]);
+                let start = control[7];
+                if start {
+                    self.io_registers.serial_transfer.start_transfer();
+                }
+                let _use_internal_clock = control[0];
+                let _fast_clock = control[1];
+            }
             0xFF04 => self.io_registers.timers.divide_register = 0,
             //TODO: Verify this behavior
             0xFF05 => self.io_registers.timers.timer_register = value,
@@ -445,9 +457,65 @@ impl From<u8> for BackgroundPaletteData {
     }
 }
 
+pub struct SerialTransfer {
+    output: u8,
+    input: u8,
+    index: u8,
+
+    control: BitArr!(for 8, in u8, Msb0),
+}
+
+impl SerialTransfer {
+    pub fn write(&mut self, value: u8) {
+        self.output = value;
+        self.index = 0;
+    }
+
+    pub fn read(&self) -> u8 {
+        (self.output << self.index) & (self.input >> self.index)
+    }
+
+    pub fn is_transfering(&self) -> bool {
+        self.control[7]
+    }
+
+    pub fn start_transfer(&mut self) {
+        self.control.set(7, true);
+    }
+
+    pub fn stop_transfer(&mut self) {
+        self.control.set(7, false);
+    }
+
+    pub fn step_clock(&mut self) -> ControlFlow<u8, ()> {
+        if self.is_transfering() {
+            self.index += 1;
+            if self.index == 8 {
+                self.index = 0;
+                self.stop_transfer();
+                ControlFlow::Break(self.output)
+            } else {
+                ControlFlow::Continue(())
+            }
+        } else {
+            ControlFlow::Continue(())
+        }
+    }
+
+    pub fn new() -> Self {
+        SerialTransfer {
+            //TODO: Connection to another gameboy
+            input: 0xFF,
+            output: 0,
+            index: 0,
+            control: BitArray::new([0]),
+        }
+    }
+}
+
 pub struct IORegisters {
     joypad: u8,
-    serial_transfer: (u8, u8),
+    serial_transfer: SerialTransfer,
     timers: Timers,
     audio: Audio,
     // wave: WavePattern,
@@ -464,7 +532,7 @@ impl IORegisters {
     fn new() -> Self {
         IORegisters {
             joypad: 0,
-            serial_transfer: (0, 0),
+            serial_transfer: SerialTransfer::new(),
             timers: Timers::new(),
             audio: Audio::new(),
             lcd_control_and_status: LCDControlAndStatus::new(),
@@ -479,6 +547,9 @@ impl IORegisters {
     }
     pub fn lcd(&self) -> &LCDControlAndStatus {
         &self.lcd_control_and_status
+    }
+    pub fn serial_transfer_mut(&mut self) -> &mut SerialTransfer {
+        &mut self.serial_transfer
     }
 }
 

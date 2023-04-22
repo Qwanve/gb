@@ -43,6 +43,8 @@ pub struct Core<'rom> {
     registers: Registers,
     ime: InterruptMasterEnable,
     dots: u16,
+    //TODO: This should be done better
+    serial_output: String,
 }
 
 impl Core<'_> {
@@ -54,6 +56,7 @@ impl Core<'_> {
             registers,
             ime: InterruptMasterEnable::Enabled,
             dots: 0,
+            serial_output: String::new(),
         })
     }
 
@@ -463,6 +466,17 @@ impl Core<'_> {
         self.execute(instr);
         //TODO: Accurate clocks for timers
         //TODO: Delay
+        if let ControlFlow::Break(output) = self
+            .mmu
+            .io_registers_mut()
+            .serial_transfer_mut()
+            .step_clock()
+        {
+            //TODO: Verify this is correct
+            self.serial_output.push(output as char);
+            info!("Serial Output: {}", self.serial_output);
+            self.mmu.request_interrupt(3);
+        }
         self.mmu.update_timers(1);
         //TODO: Generate and run interrupts
         if self.mmu.io_registers().lcd().ly() == 144 {
