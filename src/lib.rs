@@ -147,6 +147,17 @@ impl Core<'_> {
                 self.registers
                     .set_half_carry(self.registers.de.split().low & 0x0F == 0);
             }
+            Instruction::RotateRightWithCarryA => {
+                let bit7 = (self.registers.carry() as u8) << 7;
+                let a = &mut self.registers.a;
+                let bit0 = *a & 0b1 != 0;
+                *a >>= 1;
+                *a |= bit7;
+                self.registers.set_zero(false);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(bit0);
+            }
             Instruction::JumpRelativeIfNotZero { offset } => {
                 if !self.registers.zero() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));

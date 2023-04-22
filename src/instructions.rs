@@ -16,6 +16,7 @@ pub enum Instruction {
     JumpRelative { offset: i8 },
     LoadAFromDE,
     IncrementE,
+    RotateRightWithCarryA,
     JumpRelativeIfNotZero { offset: i8 },
     LoadHLFrom16Imm { new_value: u16 },
     StoreAAtHLAndIncrement,
@@ -26,6 +27,7 @@ pub enum Instruction {
     LoadAFromHLAndInc,
     IncrementL,
     DecrementL,
+    JumpRelativeIfNotCarry { offset: i8 },
     LoadSPFrom16Imm { new_value: u16 },
     StoreAAtHLAndDecrement,
     LoadAFrom8Imm { new_value: u8 },
@@ -90,6 +92,7 @@ impl Instruction {
             Instruction::JumpRelative { .. } => 2,
             Instruction::LoadAFromDE => 1,
             Instruction::IncrementE => 1,
+            Instruction::RotateRightWithCarryA => 1,
             Instruction::JumpRelativeIfNotZero { .. } => 2,
             Instruction::LoadHLFrom16Imm { .. } => 3,
             Instruction::StoreAAtHLAndIncrement => 1,
@@ -100,6 +103,7 @@ impl Instruction {
             Instruction::LoadAFromHLAndInc => 1,
             Instruction::IncrementL => 1,
             Instruction::DecrementL => 1,
+            Instruction::JumpRelativeIfNotCarry { .. } => 2,
             Instruction::LoadSPFrom16Imm { .. } => 3,
             Instruction::StoreAAtHLAndDecrement => 1,
             Instruction::LoadAFrom8Imm { .. } => 2,
@@ -163,6 +167,7 @@ impl Display for Instruction {
             ),
             Instruction::LoadAFromDE => format!("LD A, (DE)"),
             Instruction::IncrementE => format!("INC E"),
+            Instruction::RotateRightWithCarryA => format!("RRA"),
             Instruction::JumpRelativeIfNotZero { offset } => format!(
                 "JR NZ, {sign}{mag:#X}",
                 sign = if offset.is_negative() { '-' } else { '+' },
@@ -288,6 +293,7 @@ impl InstructionBuilder {
             }
             0x1A => Instruction::LoadAFromDE,
             0x1C => Instruction::IncrementE,
+            0x1F => Instruction::RotateRightWithCarryA,
             0x20 => {
                 let offset = self.s8_imm();
                 Instruction::JumpRelativeIfNotZero { offset }
@@ -310,6 +316,10 @@ impl InstructionBuilder {
             0x2A => Instruction::LoadAFromHLAndInc,
             0x2C => Instruction::IncrementL,
             0x2D => Instruction::DecrementL,
+            0x30 => {
+                let offset = self.s8_imm();
+                Instruction::JumpRelativeIfNotCarry { offset }
+            }
             0x31 => {
                 let new_value = self.u16_imm();
                 Instruction::LoadSPFrom16Imm { new_value }
