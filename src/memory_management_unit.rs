@@ -126,7 +126,7 @@ impl MemoryManagementUnit<'_> {
             0xFF21 => todo!("Read channel 4 volume and envelope"),
             0xFF22 => todo!("Read channel 4 frequency and randomness"),
             0xFF23 => todo!("Read channel 4 control"),
-            0xFF24 => todo!("Read master volume and VIN panning"),
+            0xFF24 => u8::from(&self.io_registers.audio.master_volume_and_vin_mixing),
             0xFF25 => todo!("Read channel panning"),
             0xFF26 => todo!("Read sound on/off"),
             0xFF30..=0xFF3F => todo!("Read wave pattern ram"),
@@ -514,14 +514,14 @@ impl SerialTransfer {
 }
 
 pub struct IORegisters {
-    joypad: u8,
+    // joypad: u8,
     serial_transfer: SerialTransfer,
     timers: Timers,
     audio: Audio,
     // wave: WavePattern,
     lcd_control_and_status: LCDControlAndStatus,
     vram_bank_select: u8,
-    boot_rom_disable: bool,
+    // boot_rom_disable: bool,
     // vram_dma: VRamDMA,
     // palettes: Pallets,
     wram_bank_select: u8,
@@ -531,13 +531,13 @@ pub struct IORegisters {
 impl IORegisters {
     fn new() -> Self {
         IORegisters {
-            joypad: 0,
+            // joypad: 0,
             serial_transfer: SerialTransfer::new(),
             timers: Timers::new(),
             audio: Audio::new(),
             lcd_control_and_status: LCDControlAndStatus::new(),
             vram_bank_select: 0,
-            boot_rom_disable: false,
+            // boot_rom_disable: false,
             wram_bank_select: 0,
             background_palette_data: BackgroundPaletteData::from(0),
         }
@@ -593,6 +593,17 @@ impl From<u8> for MasterVolume {
             left_vin_mixing,
             right_vin_mixing,
         }
+    }
+}
+
+impl From<&MasterVolume> for u8 {
+    fn from(value: &MasterVolume) -> Self {
+        let mut bits = bitarr!(u8, Msb0; 0; 8);
+        bits.set(7, value.left_vin_mixing);
+        bits.set(3, value.right_vin_mixing);
+        bits[4..=6].store(value.left_volume);
+        bits[0..=2].store(value.right_volume);
+        bits.into_inner()[0]
     }
 }
 
