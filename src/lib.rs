@@ -1,6 +1,7 @@
 use std::ops::ControlFlow;
 
 use instructions::{ComplexInstruction, Instruction, InstructionBuilder, InstructionParseError};
+use log::{debug, error, info, trace};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
 
@@ -458,7 +459,7 @@ impl Core<'_> {
             }
         }
         let instr = self.read_instruction();
-        println!("{} | {instr}", self.registers);
+        trace!("{} | {instr}", self.registers);
         self.execute(instr);
         //TODO: Accurate clocks for timers
         //TODO: Delay
@@ -472,11 +473,13 @@ impl Core<'_> {
         if self.ime.is_enabled() && interrupts.any() {
             for interrupt in interrupts.iter_ones() {
                 debug_assert!(interrupt <= 4);
+                let interrupt_address = 0x40 + u16::try_from(interrupt).unwrap() * 0x8;
+                debug!("Servicing interrupt {interrupt:#04X}");
                 self.mmu.acknowledge_interrupt(interrupt);
                 self.disable_ime();
                 self.registers.sp -= 2;
                 self.mmu.write_u16(self.registers.sp, self.registers.pc);
-                self.registers.pc = 0x40 + u16::try_from(interrupt).unwrap() * 0x8;
+                self.registers.pc = interrupt_address;
             }
         }
         self.update_ime();
@@ -493,7 +496,7 @@ impl Core<'_> {
         self.ime = match self.ime {
             InterruptMasterEnable::Disabled => InterruptMasterEnable::Enabling,
             InterruptMasterEnable::Enabling => {
-                eprintln!("Warning: IME wasn't updated properly");
+                error!("Warning: IME wasn't updated properly");
                 InterruptMasterEnable::Enabled
             }
             InterruptMasterEnable::Enabled => InterruptMasterEnable::Enabled,

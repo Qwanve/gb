@@ -268,6 +268,11 @@ impl Header<'_> {
         self.rom_size
     }
 
+    pub const fn rom_banks(&self) -> u16 {
+        let value = self.rom_size as u16;
+        2u16.pow((value + 1) as u32)
+    }
+
     #[must_use]
     pub const fn ram_size(&self) -> u8 {
         self.ram_size

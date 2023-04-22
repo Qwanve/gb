@@ -93,7 +93,7 @@ impl Cartridge<'_> {
         let mbc: Box<dyn MemoryBankController> = match header.cartridge_type() {
             CartridgeType::RomOnly => Box::new(memory_bank_controller::RomOnly::new(rom)),
             CartridgeType::MBC1 => {
-                Box::new(memory_bank_controller::MBC1::new(rom, header.rom_size()))
+                Box::new(memory_bank_controller::MBC1::new(rom, header.rom_banks()))
             }
             v => todo!("Memory Bank Controller: {v:?}"),
         };

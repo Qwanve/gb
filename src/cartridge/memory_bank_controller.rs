@@ -1,3 +1,5 @@
+use log::warn;
+
 const UNINIT: u8 = 0xCD;
 pub trait MemoryBankController {
     fn read(&self, address: u16) -> u8;
@@ -21,7 +23,7 @@ impl RomOnly {
 impl MemoryBankController for RomOnly {
     fn read(&self, address: u16) -> u8 {
         if address > 0x7FFF {
-            log::warn!("Invalid ROM read address `{address}`");
+            warn!("Invalid ROM read address `{address}`");
             UNINIT
         } else {
             self.rom[usize::from(address)]
@@ -30,7 +32,7 @@ impl MemoryBankController for RomOnly {
 
     fn write(&mut self, address: u16, value: u8) {
         if address > 0x7FFF {
-            log::warn!("Invalid ROM write address `{address}`");
+            warn!("Invalid ROM write address `{address}`");
         } else {
             self.rom[usize::from(address)] = value;
         }
@@ -45,14 +47,14 @@ pub struct MBC1 {
 }
 
 impl MBC1 {
-    pub fn new(rom: &[u8], rom_banks: u8) -> MBC1 {
+    pub fn new(rom: &[u8], rom_banks: u16) -> MBC1 {
         let banks: Vec<_> = rom
             .chunks_exact(0x4000)
             .map(<[u8; 16 * 1024]>::try_from)
             .map(Result::unwrap)
             .collect();
         if banks.len() != usize::from(rom_banks) {
-            log::warn!(
+            warn!(
                 "Mismatch in bank sizes. Found {} banks, expected {rom_banks} banks",
                 banks.len()
             );
