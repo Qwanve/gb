@@ -1,7 +1,7 @@
 use std::ops::ControlFlow;
 
 use instructions::{ComplexInstruction, Instruction, InstructionBuilder, InstructionParseError};
-use log::{debug, error, info, trace};
+use log::{debug, error, info, trace, warn};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
 
@@ -94,6 +94,16 @@ impl Core<'_> {
                 let bc = self.registers.bc.get_mut();
                 *bc = bc.wrapping_add(1);
             }
+            Instruction::IncrementB => {
+                let b = self.registers.bc.split_mut().high;
+                *b = b.wrapping_add(1);
+                self.registers
+                    .set_zero(*self.registers.bc.split().high == 0);
+                self.registers.set_subtraction(false);
+                //TODO: Verify half carry register
+                self.registers
+                    .set_half_carry(self.registers.bc.split().high & 0x0F == 0);
+            }
             Instruction::DecrementB => {
                 let c = self.registers.bc.split_mut().high;
                 *c = c.wrapping_sub(1);
@@ -109,6 +119,15 @@ impl Core<'_> {
             }
             Instruction::StoreSPAt16Imm { address } => {
                 self.mmu.write_u16(address, self.registers.sp)
+            }
+            Instruction::IncrementC => {
+                let c = self.registers.bc.split_mut().low;
+                *c = c.wrapping_add(1);
+                self.registers.set_zero(*self.registers.bc.split().low == 0);
+                self.registers.set_subtraction(false);
+                //TODO: Verify half carry register
+                self.registers
+                    .set_half_carry(self.registers.bc.split().low & 0x0F == 0);
             }
             Instruction::DecrementC => {
                 let c = self.registers.bc.split_mut().low;
@@ -381,6 +400,17 @@ impl Core<'_> {
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
             }
+            Instruction::CompareAWithE => {
+                let (intermediate, overflow) = self
+                    .registers
+                    .a
+                    .overflowing_sub(*self.registers.de.split().low);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(overflow);
+                self.registers.set_carry(overflow);
+            }
             Instruction::PopBC => {
                 *self.registers.bc.get_mut() = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;
@@ -519,7 +549,11 @@ impl Core<'_> {
                 self.registers.a = new_value;
             }
             Instruction::PopAF => {
-                let new_value = self.mmu.read_u16(self.registers.sp);
+                let mut new_value = self.mmu.read_u16(self.registers.sp);
+                if new_value & 0x000F != 0 {
+                    warn!("Attempted to pop invalid value into F. Masking lower bits");
+                    new_value &= 0xFFF0;
+                }
                 self.registers.set_af(new_value);
                 debug_assert_eq!(self.registers.af(), new_value);
                 self.registers.sp += 2;

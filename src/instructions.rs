@@ -5,9 +5,11 @@ pub enum Instruction {
     Noop,
     LoadBCFrom16Imm { new_value: u16 },
     IncrementBC,
+    IncrementB,
     DecrementB,
     LoadBFrom8Imm { new_value: u8 },
     StoreSPAt16Imm { address: u16 },
+    IncrementC,
     DecrementC,
     LoadCFrom8Imm { new_value: u8 },
     LoadDEFrom16Imm { new_value: u16 },
@@ -73,6 +75,7 @@ pub enum Instruction {
     OrCWithA,
     OrHLWithA,
     OrAWithA,
+    CompareAWithE,
     PopBC,
     JumpIfNotZero { address: u16 },
     Jump { address: u16 },
@@ -121,9 +124,11 @@ impl Instruction {
             Instruction::Noop => 1,
             Instruction::LoadBCFrom16Imm { .. } => 3,
             Instruction::IncrementBC => 1,
+            Instruction::IncrementB => 1,
             Instruction::DecrementB => 1,
             Instruction::LoadBFrom8Imm { .. } => 2,
             Instruction::StoreSPAt16Imm { .. } => 3,
+            Instruction::IncrementC => 1,
             Instruction::DecrementC => 1,
             Instruction::LoadCFrom8Imm { .. } => 2,
             Instruction::LoadDEFrom16Imm { .. } => 3,
@@ -189,6 +194,7 @@ impl Instruction {
             Instruction::OrCWithA => 1,
             Instruction::OrHLWithA => 1,
             Instruction::OrAWithA => 1,
+            Instruction::CompareAWithE => 1,
             Instruction::PopBC => 1,
             Instruction::JumpIfNotZero { .. } => 3,
             Instruction::Jump { .. } => 3,
@@ -231,9 +237,11 @@ impl Display for Instruction {
             Instruction::Noop => format!("NOP"),
             Instruction::LoadBCFrom16Imm { new_value } => format!("LD BC, ${new_value:04X}"),
             Instruction::IncrementBC => format!("INC BC"),
+            Instruction::IncrementB => format!("INC B"),
             Instruction::DecrementB => format!("DEC B"),
             Instruction::LoadBFrom8Imm { new_value } => format!("LD B, ${new_value:02X}"),
             Instruction::StoreSPAt16Imm { address } => format!("LD ${address:04X}, SP"),
+            Instruction::IncrementC => format!("INC C"),
             Instruction::DecrementC => format!("DEC C"),
             Instruction::LoadCFrom8Imm { new_value } => format!("LD C, ${new_value:02X}"),
             Instruction::LoadDEFrom16Imm { new_value } => format!("LD DE, ${new_value:04X}"),
@@ -319,6 +327,7 @@ impl Display for Instruction {
             Instruction::OrCWithA => format!("OR C"),
             Instruction::OrHLWithA => format!("OR (HL), A"),
             Instruction::OrAWithA => format!("OR A"),
+            Instruction::CompareAWithE => format!("CP E"),
             Instruction::PopBC => format!("POP BC"),
             Instruction::JumpIfNotZero { address } => format!("JP NZ, ${address:04X}"),
             Instruction::Jump { address } => format!("JP ${address:04X}"),
@@ -398,6 +407,7 @@ impl InstructionBuilder {
                 Instruction::LoadBCFrom16Imm { new_value }
             }
             0x03 => Instruction::IncrementBC,
+            0x04 => Instruction::IncrementB,
             0x05 => Instruction::DecrementB,
             0x06 => {
                 let new_value = self.u8_imm();
@@ -407,6 +417,7 @@ impl InstructionBuilder {
                 let address = self.u16_imm();
                 Instruction::StoreSPAt16Imm { address }
             }
+            0x0C => Instruction::IncrementC,
             0x0D => Instruction::DecrementC,
             0x0E => {
                 let new_value = self.u8_imm();
@@ -508,6 +519,7 @@ impl InstructionBuilder {
             0xB1 => Instruction::OrCWithA,
             0xB6 => Instruction::OrHLWithA,
             0xB7 => Instruction::OrAWithA,
+            0xBB => Instruction::CompareAWithE,
             0xC1 => Instruction::PopBC,
             0xC2 => {
                 let address = self.u16_imm();
