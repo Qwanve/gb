@@ -225,6 +225,26 @@ impl Core<'_> {
             Instruction::LoadHFrom8Imm { new_value } => {
                 *self.registers.hl.split_mut().high = new_value;
             }
+            Instruction::DecimalAdjustA => {
+                if !self.registers.subtraction() {
+                    if self.registers.carry() || self.registers.a > 0x99 {
+                        self.registers.a = self.registers.a.wrapping_add(0x60);
+                        self.registers.set_carry(true);
+                    }
+                    if self.registers.half_carry() || self.registers.a & 0x0F > 0x09 {
+                        self.registers.a = self.registers.a.wrapping_add(0x06);
+                    }
+                } else {
+                    if self.registers.carry() {
+                        self.registers.a = self.registers.a.wrapping_sub(0x60);
+                    }
+                    if self.registers.half_carry() {
+                        self.registers.a = self.registers.a.wrapping_sub(0x06);
+                    }
+                }
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_carry(false);
+            }
             Instruction::JumpRelativeIfZero { offset } => {
                 if self.registers.zero() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));

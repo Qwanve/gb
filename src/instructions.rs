@@ -28,6 +28,7 @@ pub enum Instruction {
     IncrementH,
     DecrementH,
     LoadHFrom8Imm { new_value: u8 },
+    DecimalAdjustA,
     JumpRelativeIfZero { offset: i8 },
     AddHLWithHL,
     LoadAFromHLAndInc,
@@ -147,6 +148,7 @@ impl Instruction {
             Instruction::IncrementH => 1,
             Instruction::DecrementH => 1,
             Instruction::LoadHFrom8Imm { .. } => 2,
+            Instruction::DecimalAdjustA => 1,
             Instruction::JumpRelativeIfZero { .. } => 2,
             Instruction::AddHLWithHL => 1,
             Instruction::LoadAFromHLAndInc => 1,
@@ -268,6 +270,7 @@ impl Display for Instruction {
             Instruction::IncrementH => format!("INC H"),
             Instruction::DecrementH => format!("DEC H"),
             Instruction::LoadHFrom8Imm { new_value } => format!("LD H, ${new_value:02X}"),
+            Instruction::DecimalAdjustA => format!("DAA"),
             Instruction::JumpRelativeIfZero { offset } => format!(
                 "JR Z, {sign}{mag:#X}",
                 sign = if offset.is_negative() { '-' } else { '+' },
@@ -454,6 +457,7 @@ impl InstructionBuilder {
                 let new_value = self.u8_imm();
                 Instruction::LoadHFrom8Imm { new_value }
             }
+            0x27 => Instruction::DecimalAdjustA,
             0x28 => {
                 let offset = self.s8_imm();
                 Instruction::JumpRelativeIfZero { offset }
