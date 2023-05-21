@@ -568,7 +568,7 @@ impl InstructionBuilder {
                 let value = self.u8_imm();
                 Instruction::SubtractAWith8Imm { value }
             }
-            0xDA => {
+            0xD8 => {
                 let address = self.u16_imm();
                 Instruction::JumpIfCarry { address }
             }
