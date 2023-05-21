@@ -292,6 +292,11 @@ impl Core<'_> {
             Instruction::LoadLFrom8Imm { new_value } => {
                 *self.registers.hl.split_mut().low = new_value
             }
+            Instruction::ComplimentA => {
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(true);
+                self.registers.a = !self.registers.a;
+            }
             Instruction::JumpRelativeIfNotCarry { offset } => {
                 if !self.registers.carry() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
@@ -647,6 +652,14 @@ impl Core<'_> {
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(bit0);
+            }
+            ComplexInstruction::SwapA => {
+                self.registers.a = self.registers.a.rotate_right(4);
+
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
             }
             ComplexInstruction::ShiftRightLogicalB => {
                 let b = self.registers.bc.split_mut().high;

@@ -35,6 +35,7 @@ pub enum Instruction {
     IncrementL,
     DecrementL,
     LoadLFrom8Imm { new_value: u8 },
+    ComplimentA,
     JumpRelativeIfNotCarry { offset: i8 },
     LoadSPFrom16Imm { new_value: u16 },
     StoreAAtHLAndDecrement,
@@ -116,6 +117,7 @@ pub enum ComplexInstruction {
     RotateRightWithCarryC,
     RotateRightWithCarryD,
     RotateRightWithCarryE,
+    SwapA,
     ShiftRightLogicalB,
 }
 
@@ -155,6 +157,7 @@ impl Instruction {
             Instruction::IncrementL => 1,
             Instruction::DecrementL => 1,
             Instruction::LoadLFrom8Imm { .. } => 2,
+            Instruction::ComplimentA => 1,
             Instruction::JumpRelativeIfNotCarry { .. } => 2,
             Instruction::LoadSPFrom16Imm { .. } => 3,
             Instruction::StoreAAtHLAndDecrement => 1,
@@ -281,6 +284,7 @@ impl Display for Instruction {
             Instruction::IncrementL => format!("INC L"),
             Instruction::DecrementL => format!("DEC L"),
             Instruction::LoadLFrom8Imm { new_value } => format!("LD L, ${new_value:02X}"),
+            Instruction::ComplimentA => format!("CPL"),
             Instruction::JumpRelativeIfNotCarry { offset } => format!(
                 "JR NC, {sign}{mag:#X}",
                 sign = if offset.is_negative() { '-' } else { '+' },
@@ -374,6 +378,7 @@ impl Display for ComplexInstruction {
             ComplexInstruction::RotateRightWithCarryC => format!("RR C"),
             ComplexInstruction::RotateRightWithCarryD => format!("RR D"),
             ComplexInstruction::RotateRightWithCarryE => format!("RR E"),
+            ComplexInstruction::SwapA => format!("SWAP A"),
             ComplexInstruction::ShiftRightLogicalB => format!("SRL B"),
         };
         write!(f, "{str}")
@@ -470,6 +475,7 @@ impl InstructionBuilder {
                 let new_value = self.u8_imm();
                 Instruction::LoadLFrom8Imm { new_value }
             }
+            0x2F => Instruction::ComplimentA,
             0x30 => {
                 let offset = self.s8_imm();
                 Instruction::JumpRelativeIfNotCarry { offset }
@@ -616,6 +622,7 @@ impl InstructionBuilder {
             0x19 => ComplexInstruction::RotateRightWithCarryC,
             0x1A => ComplexInstruction::RotateRightWithCarryD,
             0x1B => ComplexInstruction::RotateRightWithCarryE,
+            0x37 => ComplexInstruction::SwapA,
             0x38 => ComplexInstruction::ShiftRightLogicalB,
             value => Err(InstructionParseError::UnknownComplexInstruction(value))?,
         })
