@@ -781,6 +781,13 @@ impl Core<'_> {
         }
         let instr = self.read_instruction();
         trace!("{} | {instr}", self.registers);
+        let is_loop = match instr {
+            Instruction::JumpRelative { offset: -2 } => true,
+            _ => false,
+        };
+        if (!self.ime.is_enabled() || !self.mmu.interrupt_enable().any()) && is_loop {
+            return ControlFlow::Break(());
+        }
         self.execute(instr);
         //TODO: Accurate clocks for timers
         //TODO: Delay
