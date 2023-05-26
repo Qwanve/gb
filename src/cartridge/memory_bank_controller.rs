@@ -30,11 +30,12 @@ impl MemoryBankController for RomOnly {
         }
     }
 
-    fn write(&mut self, address: u16, value: u8) {
+    fn write(&mut self, address: u16, _value: u8) {
         if address > 0x7FFF {
             warn!("Invalid ROM write address `{address}`");
         } else {
-            self.rom[usize::from(address)] = value;
+            warn!("Writing to ROM");
+            // self.rom[usize::from(address)] = value;
         }
     }
 }
