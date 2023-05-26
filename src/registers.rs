@@ -226,6 +226,22 @@ impl SplitRegister {
     }
 }
 
+pub fn is_half_carry(a: u8, b: u8) -> bool {
+    ((a & 0x0F) + (b & 0x0F)) & 0x10 == 0x10
+}
+
+pub fn is_half_carry_u16(a: u16, b: u16) -> bool {
+    let [a_low, a_high] = a.to_le_bytes();
+    let [b_low, b_high] = b.to_le_bytes();
+    let (_, overflow) = a_low.overflowing_add(b_low);
+    if overflow {
+        let half_c = is_half_carry(b_high, 1);
+        is_half_carry(a_high, b_high.wrapping_add(1)) || half_c
+    } else {
+        is_half_carry(a_high, b_high)
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -247,5 +263,36 @@ mod test {
         assert_eq!(*r.hl.split().low, 0x03);
         assert_eq!(r.pc, 0x100);
         assert_eq!(r.sp, 0xFFFE);
+    }
+
+    #[test]
+    fn half_carry() {
+        let a = 0b00001010;
+        let b = 0b00001100;
+        assert!(is_half_carry(a, b));
+        assert!(is_half_carry(b, a));
+
+        let a = 0x7F;
+        let b = 0x01;
+        assert!(is_half_carry(a, b));
+        assert!(is_half_carry(b, a));
+
+        let a = 0b00001010_00000000;
+        let b = 0b00001100_00000000;
+        assert!(is_half_carry_u16(a, b));
+        assert!(is_half_carry_u16(b, a));
+        let a = 0b00000100;
+        let b = 0b00000101;
+        assert!(!is_half_carry(a, b));
+        assert!(!is_half_carry(b, a));
+        let a = 0b00000100_00000000;
+        let b = 0b00000101_00000000;
+        assert!(!is_half_carry_u16(a, b));
+        assert!(!is_half_carry_u16(b, a));
+
+        let a = 0x7FFF;
+        let b = 0x0001;
+        assert!(is_half_carry_u16(a, b));
+        assert!(is_half_carry_u16(b, a));
     }
 }

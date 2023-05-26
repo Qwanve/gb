@@ -180,7 +180,7 @@ impl MemoryManagementUnit<'_> {
 
     pub fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x0000..=0x3FFF => todo!("Write to cartridge"),
+            0x0000..=0x3FFF => self.cartridge.mbc_mut().write(address, value),
             0x4000..=0x7FFF => todo!("Write to cartridge"),
             0x8000..=0x9FFF => {
                 if !self.vram.locked {

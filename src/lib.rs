@@ -4,6 +4,7 @@ use instructions::{ComplexInstruction, Instruction, InstructionBuilder, Instruct
 use log::{debug, error, info, trace, warn};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
+use registers::{is_half_carry, is_half_carry_u16};
 
 pub mod cartridge;
 pub mod instructions;
@@ -96,23 +97,23 @@ impl Core<'_> {
             }
             Instruction::IncrementB => {
                 let b = self.registers.bc.split_mut().high;
+                let half_carry = is_half_carry(*b, 1);
                 *b = b.wrapping_add(1);
                 self.registers
                     .set_zero(*self.registers.bc.split().high == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.bc.split().high & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementB => {
                 let c = self.registers.bc.split_mut().high;
+                let half_carry = is_half_carry(*c, (-1i8) as u8);
                 *c = c.wrapping_sub(1);
                 self.registers
                     .set_zero(*self.registers.bc.split().high == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.bc.split().low & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadBFrom8Imm { new_value } => {
                 *self.registers.bc.split_mut().high = new_value
@@ -122,21 +123,21 @@ impl Core<'_> {
             }
             Instruction::IncrementC => {
                 let c = self.registers.bc.split_mut().low;
+                let half_carry = is_half_carry(*c, 1);
                 *c = c.wrapping_add(1);
                 self.registers.set_zero(*self.registers.bc.split().low == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.bc.split().low & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementC => {
                 let c = self.registers.bc.split_mut().low;
+                let half_carry = is_half_carry(*c, (-1i8) as u8);
                 *c = c.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.bc.split().low == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.bc.split().low & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadCFrom8Imm { new_value } => {
                 *self.registers.bc.split_mut().low = new_value
@@ -149,13 +150,13 @@ impl Core<'_> {
             }
             Instruction::IncrementD => {
                 let d = self.registers.de.split_mut().high;
+                let half_carry = is_half_carry(*d, 1);
                 *d = d.wrapping_add(1);
                 self.registers
                     .set_zero(*self.registers.de.split().high == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.de.split().high & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::JumpRelative { offset } => {
                 self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
@@ -166,21 +167,21 @@ impl Core<'_> {
             }
             Instruction::IncrementE => {
                 let e = self.registers.de.split_mut().low;
+                let half_carry = is_half_carry(*e, 1);
                 *e = e.wrapping_add(1);
                 self.registers.set_zero(*self.registers.de.split().low == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.de.split().low & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementE => {
                 let e = self.registers.de.split_mut().low;
+                let half_carry = is_half_carry(*e, (-1i8) as u8);
                 *e = e.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.de.split().low == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.de.split().low & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::RotateRightWithCarryA => {
                 let bit7 = (self.registers.carry() as u8) << 7;
@@ -210,23 +211,23 @@ impl Core<'_> {
             }
             Instruction::IncrementH => {
                 let h = self.registers.hl.split_mut().high;
+                let half_carry = is_half_carry(*h, 1);
                 *h = h.wrapping_add(1);
                 self.registers
                     .set_zero(*self.registers.hl.split().high == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.hl.split().high & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementH => {
                 let h = self.registers.hl.split_mut().high;
+                let half_carry = is_half_carry(*h, (-1i8) as u8);
                 *h = h.wrapping_sub(1);
                 self.registers
                     .set_zero(*self.registers.hl.split().high == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.hl.split().high & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadHFrom8Imm { new_value } => {
                 *self.registers.hl.split_mut().high = new_value;
@@ -259,7 +260,7 @@ impl Core<'_> {
             Instruction::AddHLWithHL => {
                 let hl = *self.registers.hl.get();
                 //TODO: 16-bit half-carry
-                let half_carry = hl & 0x0F == 0xF;
+                let half_carry = is_half_carry_u16(hl, hl);
                 let (res, carry) = hl.overflowing_add(hl);
                 *self.registers.hl.get_mut() = res;
                 self.registers.set_subtraction(false);
@@ -273,21 +274,21 @@ impl Core<'_> {
             }
             Instruction::IncrementL => {
                 let l = self.registers.hl.split_mut().low;
+                let half_carry = is_half_carry(*l, 1);
                 *l = l.wrapping_add(1);
                 self.registers.set_zero(*self.registers.hl.split().low == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.hl.split().low & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementL => {
                 let l = self.registers.hl.split_mut().low;
+                let half_carry = is_half_carry(*l, (-1i8) as u8);
                 *l = l.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.hl.split().low == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.hl.split().low & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadLFrom8Imm { new_value } => {
                 *self.registers.hl.split_mut().low = new_value
@@ -310,12 +311,14 @@ impl Core<'_> {
             }
             Instruction::DecrementAtHL => {
                 let hl = *self.registers.hl.get();
-                let res = self.mmu.read(hl).wrapping_sub(1);
+                let mem = self.mmu.read(hl);
+                let half_carry = is_half_carry(mem, (-1i8) as u8);
+                let res = mem.wrapping_sub(1);
                 self.mmu.write(hl, res);
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers.set_half_carry(res & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::JumpRelativeIfCarry { offset } => {
                 if self.registers.carry() {
@@ -323,19 +326,20 @@ impl Core<'_> {
                 }
             }
             Instruction::IncrementA => {
+                let half_carry = is_half_carry(self.registers.a, 1);
                 self.registers.a = self.registers.a.wrapping_add(1);
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Verify half carry register
-                self.registers.set_half_carry(self.registers.a & 0x0F == 0);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementA => {
+                let half_carry = is_half_carry(self.registers.a, (-1i8) as u8);
                 self.registers.a = self.registers.a.wrapping_sub(1);
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
-                self.registers
-                    .set_half_carry(self.registers.a & 0x0F == 0x0F);
+                self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
             Instruction::LoadBFromHL => {
@@ -448,7 +452,7 @@ impl Core<'_> {
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify these flags
-                self.registers.set_half_carry(overflow);
+                // self.registers.set_half_carry(overflow);
                 self.registers.set_carry(overflow);
             }
             Instruction::PopBC => {
@@ -478,12 +482,13 @@ impl Core<'_> {
                     .write_u16(self.registers.sp, *self.registers.bc.get());
             }
             Instruction::AddAWith8Imm { value } => {
+                let half_carry = is_half_carry(self.registers.a, value);
                 let (res, carry) = self.registers.a.overflowing_add(value);
                 self.registers.a = res;
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(false);
                 //TODO: Fix half carry flag
-                self.registers.set_half_carry(carry);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
             Instruction::ReturnIfZero => {
@@ -515,7 +520,7 @@ impl Core<'_> {
                 self.registers.a = res;
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(false);
-                self.registers.set_half_carry(carry);
+                // self.registers.set_half_carry(carry);
                 self.registers.set_carry(carry);
             }
             Instruction::ReturnIfNotCarry => {
@@ -543,7 +548,7 @@ impl Core<'_> {
                 self.registers.a = res;
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(true);
-                self.registers.set_half_carry(carry);
+                // self.registers.set_half_carry(carry);
                 self.registers.set_carry(carry);
             }
             Instruction::JumpIfCarry { address } => {
@@ -609,7 +614,7 @@ impl Core<'_> {
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
                 //TODO: Verify these flags
-                self.registers.set_half_carry(overflow);
+                // self.registers.set_half_carry(overflow);
                 self.registers.set_carry(overflow);
             }
         }
