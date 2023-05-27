@@ -341,6 +341,17 @@ impl Core<'_> {
             Instruction::IncrementSP => {
                 self.registers.sp = self.registers.sp.wrapping_add(1);
             }
+            Instruction::IncrementAtHL => {
+                let hl = *self.registers.hl.get();
+                let mem = self.mmu.read(hl);
+                let half_carry = is_half_carry(mem, 1);
+                let res = mem.wrapping_add(1);
+                self.mmu.write(hl, res);
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                //TODO: Verify half carry register
+                self.registers.set_half_carry(half_carry);
+            }
             Instruction::DecrementAtHL => {
                 let hl = *self.registers.hl.get();
                 let mem = self.mmu.read(hl);
@@ -547,8 +558,40 @@ impl Core<'_> {
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::LoadAFromHL => self.registers.a = self.mmu.read(*self.registers.hl.get()),
             Instruction::LoadAFromA => self.registers.a = self.registers.a,
+            Instruction::AddAWithB => {
+                let a = &mut self.registers.a;
+                let b = self.registers.bc.split_mut().high;
+                let half_carry = is_half_carry(*a, *b);
+                let (res, carry) = a.overflowing_add(*b);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithH => {
+                let h = *self.registers.hl.split().high;
+                let half_carry1 = is_half_carry(self.registers.a, h);
+                let (res, carry1) = self.registers.a.overflowing_add(h);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
             Instruction::XorCWithA => {
                 self.registers.a ^= self.registers.bc.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::XorEWithA => {
+                self.registers.a ^= self.registers.de.split().low;
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
@@ -647,6 +690,12 @@ impl Core<'_> {
                 // self.registers.set_half_carry(overflow);
                 self.registers.set_carry(overflow);
             }
+            Instruction::ReturnIfNotZero => {
+                if !self.registers.zero() {
+                    self.registers.pc = self.mmu.read_u16(self.registers.sp);
+                    self.registers.sp += 2;
+                }
+            }
             Instruction::PopBC => {
                 *self.registers.bc.get_mut() = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;
@@ -679,6 +728,11 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
+            Instruction::Reset0 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0000;
+            }
             Instruction::ReturnIfZero => {
                 if self.registers.zero() {
                     self.registers.pc = self.mmu.read_u16(self.registers.sp);
@@ -695,6 +749,14 @@ impl Core<'_> {
                 }
             }
             Instruction::Complex(ci) => self.execute_complex(ci),
+            Instruction::CallIfZero { address } => {
+                //TODO: Verify
+                if self.registers.zero() {
+                    self.registers.sp -= 2;
+                    self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                    self.registers.pc = address;
+                }
+            }
             Instruction::Call { address } => {
                 //TODO: Verify
                 self.registers.sp -= 2;
@@ -714,6 +776,11 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
+            Instruction::Reset1 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0008;
+            }
             Instruction::ReturnIfNotCarry => {
                 if !self.registers.carry() {
                     self.registers.pc = self.mmu.read_u16(self.registers.sp);
@@ -726,6 +793,13 @@ impl Core<'_> {
             }
             Instruction::JumpIfNotCarry { address } => {
                 if !self.registers.carry() {
+                    self.registers.pc = address;
+                }
+            }
+            Instruction::CallIfNotCarry { address } => {
+                if !self.registers.carry() {
+                    self.registers.sp -= 2;
+                    self.mmu.write_u16(self.registers.sp, self.registers.pc);
                     self.registers.pc = address;
                 }
             }
@@ -743,14 +817,31 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
+            Instruction::Reset2 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0010;
+            }
             Instruction::ReturnIfCarry => {
                 if self.registers.carry() {
                     self.registers.pc = self.mmu.read_u16(self.registers.sp);
                     self.registers.sp += 2;
                 }
             }
+            Instruction::ReturnInterrupt => {
+                self.registers.pc = self.mmu.read_u16(self.registers.sp);
+                self.registers.sp += 2;
+                self.enable_ime();
+            }
             Instruction::JumpIfCarry { address } => {
                 if self.registers.carry() {
+                    self.registers.pc = address;
+                }
+            }
+            Instruction::CallIfCarry { address } => {
+                if self.registers.carry() {
+                    self.registers.sp -= 2;
+                    self.mmu.write_u16(self.registers.sp, self.registers.pc);
                     self.registers.pc = address;
                 }
             }
@@ -767,13 +858,23 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
-            Instruction::OutputAToPort { address } => {
+            Instruction::Reset3 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0018;
+            }
+            Instruction::OutputAToPort8Imm { address } => {
                 let address = 0xFF00 + u16::from(address);
                 self.mmu.write(address, self.registers.a)
             }
             Instruction::PopHL => {
                 *self.registers.hl.get_mut() = self.mmu.read_u16(self.registers.sp);
                 self.registers.sp += 2;
+            }
+            Instruction::OutputAToPortC => {
+                let c = *self.registers.bc.split().low;
+                let address = 0xFF00 + u16::from(c);
+                self.mmu.write(address, self.registers.a)
             }
             Instruction::PushHL => {
                 self.registers.sp -= 2;
@@ -786,6 +887,11 @@ impl Core<'_> {
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(true);
                 self.registers.set_carry(false);
+            }
+            Instruction::Reset4 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0020;
             }
             Instruction::AddSPWithS8Imm { value } => {
                 let [sp_low, mut sp_high] = self.registers.sp.to_le_bytes();
@@ -816,7 +922,12 @@ impl Core<'_> {
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
             }
-            Instruction::LoadAFromPort { address } => {
+            Instruction::Reset5 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0028;
+            }
+            Instruction::LoadAFromPort8Imm { address } => {
                 let address = 0xFF00 + u16::from(address);
                 self.registers.a = self.mmu.read(address);
             }
@@ -834,6 +945,11 @@ impl Core<'_> {
                 debug_assert_eq!(self.registers.af(), new_value);
                 self.registers.sp += 2;
             }
+            Instruction::LoadAFromPortC => {
+                let c = *self.registers.bc.split().low;
+                let address = 0xFF00 + u16::from(c);
+                self.registers.a = self.mmu.read(address);
+            }
             Instruction::DisableInterrupts => self.disable_ime(),
             Instruction::PushAF => {
                 self.registers.sp -= 2;
@@ -845,6 +961,11 @@ impl Core<'_> {
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
+            }
+            Instruction::Reset6 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0030;
             }
             Instruction::LoadHLFromSPWithS8Imm { value } => {
                 let [sp_low, mut sp_high] = self.registers.sp.to_le_bytes();
@@ -867,6 +988,7 @@ impl Core<'_> {
                 self.registers.set_carry(overflow);
             }
             Instruction::LoadSPFromHL => self.registers.sp = *self.registers.hl.get(),
+            Instruction::EnableInterrupts => self.enable_ime(),
             Instruction::CompareAWith8Imm { value } => {
                 let (intermediate, overflow) = self.registers.a.overflowing_sub(value);
                 self.registers.set_zero(intermediate == 0);
@@ -876,11 +998,28 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
+            Instruction::Reset7 => {
+                self.registers.sp -= 2;
+                self.mmu.write_u16(self.registers.sp, self.registers.pc);
+                self.registers.pc = 0x0038;
+            }
         }
     }
 
     pub fn execute_complex(&mut self, instruction: ComplexInstruction) {
         match instruction {
+            ComplexInstruction::RotateRightWithCarryB => {
+                let bit7 = (self.registers.carry() as u8) << 7;
+                let b = self.registers.bc.split_mut().high;
+                let bit0 = *b & 0b1 != 0;
+                *b >>= 1;
+                *b |= bit7;
+                let b = self.registers.bc.split().high;
+                self.registers.set_zero(*b == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(bit0);
+            }
             ComplexInstruction::RotateRightWithCarryC => {
                 let bit7 = (self.registers.carry() as u8) << 7;
                 let c = self.registers.bc.split_mut().low;
@@ -917,6 +1056,25 @@ impl Core<'_> {
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(bit0);
             }
+            ComplexInstruction::ShiftLeftLogicalAtHL => {
+                let value = self.mmu.read(*self.registers.hl.get());
+                let carry = value & 0b10000000 != 0;
+                self.mmu.write(*self.registers.hl.get(), value << 1);
+                self.registers.set_zero(value << 1 == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(carry);
+            }
+            ComplexInstruction::SwapB => {
+                let b = self.registers.bc.split_mut().high;
+                *b = b.rotate_right(4);
+
+                let b = self.registers.bc.split().high;
+                self.registers.set_zero(*b == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
             ComplexInstruction::SwapA => {
                 self.registers.a = self.registers.a.rotate_right(4);
 
@@ -948,6 +1106,14 @@ impl Core<'_> {
                 //This is right
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(bit0);
+            }
+            ComplexInstruction::Bit5AtHL => {
+                let value = self.mmu.read(*self.registers.hl.get());
+                let bit5 = 0b00100000;
+                let bit5 = value & bit5 != 0;
+                self.registers.set_zero(!bit5);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
             }
         }
     }
