@@ -643,6 +643,26 @@ impl Core<'_> {
                 self.registers.set_half_carry(true);
                 self.registers.set_carry(false);
             }
+            Instruction::AddSPWithS8Imm { value } => {
+                let [sp_low, mut sp_high] = self.registers.sp.to_le_bytes();
+                // This instruction works as a signed 8 bit addition
+                // But flags are weird, so it's easier to do it as an unsigned addition
+                let unsigned_value = value as u8;
+                let half_carry = is_half_carry(sp_low, unsigned_value);
+                let (sp_low, overflow) = sp_low.overflowing_add(unsigned_value);
+                // Adjust back to 16-bit
+                if overflow && value.is_positive() {
+                    sp_high = sp_high.wrapping_add(1);
+                } else if !overflow && !value.is_positive() {
+                    sp_high = sp_high.wrapping_sub(1);
+                }
+
+                self.registers.sp = u16::from_le_bytes([sp_low, sp_high]);
+                self.registers.set_zero(false);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
+            }
             Instruction::JumpHL => self.registers.pc = *self.registers.hl.get(),
             Instruction::StoreAAt16Imm { address } => self.mmu.write(address, self.registers.a),
             Instruction::Xor8ImmWithA { value } => {
@@ -681,6 +701,26 @@ impl Core<'_> {
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
+            }
+            Instruction::LoadHLFromSPWithS8Imm { value } => {
+                let [sp_low, mut sp_high] = self.registers.sp.to_le_bytes();
+                // This instruction works as a signed 8 bit addition
+                // But flags are weird, so it's easier to do it as an unsigned addition
+                let unsigned_value = value as u8;
+                let half_carry = is_half_carry(sp_low, unsigned_value);
+                let (sp_low, overflow) = sp_low.overflowing_add(unsigned_value);
+                // Adjust back to 16-bit
+                if overflow && value.is_positive() {
+                    sp_high = sp_high.wrapping_add(1);
+                } else if !overflow && !value.is_positive() {
+                    sp_high = sp_high.wrapping_sub(1);
+                }
+
+                *self.registers.hl.get_mut() = u16::from_le_bytes([sp_low, sp_high]);
+                self.registers.set_zero(false);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
             }
             Instruction::LoadSPFromHL => self.registers.sp = *self.registers.hl.get(),
             Instruction::CompareAWith8Imm { value } => {

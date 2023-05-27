@@ -112,6 +112,7 @@ pub enum Instruction {
     PopHL,
     PushHL,
     AndAWith8Imm { value: u8 },
+    AddSPWithS8Imm { value: i8 },
     JumpHL,
     StoreAAt16Imm { address: u16 },
     Xor8ImmWithA { value: u8 },
@@ -121,6 +122,7 @@ pub enum Instruction {
     DisableInterrupts,
     PushAF,
     OrAWith8Imm { value: u8 },
+    LoadHLFromSPWithS8Imm { value: i8 },
     LoadSPFromHL,
     CompareAWith8Imm { value: u8 },
 }
@@ -248,6 +250,7 @@ impl Instruction {
             Instruction::PopHL => 1,
             Instruction::PushHL => 1,
             Instruction::AndAWith8Imm { .. } => 2,
+            Instruction::AddSPWithS8Imm { .. } => 2,
             Instruction::JumpHL => 1,
             Instruction::StoreAAt16Imm { .. } => 3,
             Instruction::Xor8ImmWithA { .. } => 2,
@@ -257,6 +260,7 @@ impl Instruction {
             Instruction::DisableInterrupts => 1,
             Instruction::PushAF => 1,
             Instruction::OrAWith8Imm { .. } => 2,
+            Instruction::LoadHLFromSPWithS8Imm { .. } => 2,
             Instruction::LoadSPFromHL => 1,
             Instruction::CompareAWith8Imm { .. } => 2,
         }
@@ -396,6 +400,11 @@ impl Display for Instruction {
             Instruction::PopHL => format!("POP HL"),
             Instruction::PushHL => format!("PUSH HL"),
             Instruction::AndAWith8Imm { value } => format!("AND ${value:02X}"),
+            Instruction::AddSPWithS8Imm { value } => format!(
+                "ADD SP, {sign}${mag:02X}",
+                sign = if value.is_negative() { '-' } else { '+' },
+                mag = value.abs()
+            ),
             Instruction::JumpHL => format!("JP HL"),
             Instruction::StoreAAt16Imm { address } => format!("LD ${address:04X}, A"),
             Instruction::Xor8ImmWithA { value } => format!("XOR ${value:02X}"),
@@ -405,6 +414,11 @@ impl Display for Instruction {
             Instruction::DisableInterrupts => format!("DI"),
             Instruction::PushAF => format!("PUSH AF"),
             Instruction::OrAWith8Imm { value } => format!("OR ${value:02X}"),
+            Instruction::LoadHLFromSPWithS8Imm { value } => format!(
+                "LD HL, SP {sign} ${mag:02X}",
+                sign = if value.is_negative() { '-' } else { '+' },
+                mag = value.abs()
+            ),
             Instruction::LoadSPFromHL => format!("LD SP, HL"),
             Instruction::CompareAWith8Imm { value } => format!("CP ${value:02X}"),
         };
@@ -644,6 +658,10 @@ impl InstructionBuilder {
                 let value = self.u8_imm();
                 Instruction::AndAWith8Imm { value }
             }
+            0xE8 => {
+                let value = self.s8_imm();
+                Instruction::AddSPWithS8Imm { value }
+            }
             0xE9 => Instruction::JumpHL,
             0xEA => {
                 let address = self.u16_imm();
@@ -663,6 +681,10 @@ impl InstructionBuilder {
             0xF6 => {
                 let value = self.u8_imm();
                 Instruction::OrAWith8Imm { value }
+            }
+            0xF8 => {
+                let value = self.s8_imm();
+                Instruction::LoadHLFromSPWithS8Imm { value }
             }
             0xF9 => Instruction::LoadSPFromHL,
             0xFA => {
