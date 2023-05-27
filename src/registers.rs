@@ -230,6 +230,10 @@ pub fn is_half_carry(a: u8, b: u8) -> bool {
     ((a & 0x0F) + (b & 0x0F)) & 0x10 == 0x10
 }
 
+pub fn is_half_carry_sub(a: u8, b: u8) -> bool {
+    ((a & 0x0F).wrapping_sub(b & 0x0F)) & 0x10 == 0x10
+}
+
 pub fn is_half_carry_u16(a: u16, b: u16) -> bool {
     let [a_low, a_high] = a.to_le_bytes();
     let [b_low, b_high] = b.to_le_bytes();

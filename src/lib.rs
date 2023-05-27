@@ -4,7 +4,7 @@ use instructions::{ComplexInstruction, Instruction, InstructionBuilder, Instruct
 use log::{debug, error, info, trace, warn};
 use memory_management_unit::MemoryManagementUnit;
 use registers::Registers;
-use registers::{is_half_carry, is_half_carry_u16};
+use registers::{is_half_carry, is_half_carry_sub, is_half_carry_u16};
 
 pub mod cartridge;
 pub mod instructions;
@@ -121,6 +121,17 @@ impl Core<'_> {
             Instruction::StoreSPAt16Imm { address } => {
                 self.mmu.write_u16(address, self.registers.sp)
             }
+            Instruction::AddHLWithBC => {
+                let hl = self.registers.hl.get_mut();
+                let bc = *self.registers.bc.get();
+                let (res, carry) = hl.overflowing_add(bc);
+                let half_carry = is_half_carry_u16(*hl, bc);
+                *hl = res;
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::DecrementBC => *self.registers.bc.get_mut() -= 1,
             Instruction::IncrementC => {
                 let c = self.registers.bc.split_mut().low;
                 let half_carry = is_half_carry(*c, 1);
@@ -158,13 +169,27 @@ impl Core<'_> {
                 //TODO: Verify half carry register
                 self.registers.set_half_carry(half_carry);
             }
+            Instruction::LoadDFrom8Imm { new_value } => {
+                *self.registers.de.split_mut().high = new_value
+            }
             Instruction::JumpRelative { offset } => {
                 self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
+            }
+            Instruction::AddHLWithDE => {
+                let hl = self.registers.hl.get_mut();
+                let de = *self.registers.de.get();
+                let (res, carry) = hl.overflowing_add(de);
+                let half_carry = is_half_carry_u16(*hl, de);
+                *hl = res;
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
             }
             Instruction::LoadAFromDE => {
                 let new_value = self.mmu.read(*self.registers.de.get());
                 self.registers.a = new_value;
             }
+            Instruction::DecrementDE => *self.registers.de.get_mut() -= 1,
             Instruction::IncrementE => {
                 let e = self.registers.de.split_mut().low;
                 let half_carry = is_half_carry(*e, 1);
@@ -275,6 +300,7 @@ impl Core<'_> {
                 self.registers.a = byte;
                 *self.registers.hl.get_mut() += 1;
             }
+            Instruction::DecrementHL => *self.registers.hl.get_mut() -= 1,
             Instruction::IncrementL => {
                 let l = self.registers.hl.split_mut().low;
                 let half_carry = is_half_carry(*l, 1);
@@ -326,6 +352,7 @@ impl Core<'_> {
                 //TODO: Verify half carry register
                 self.registers.set_half_carry(half_carry);
             }
+            Instruction::Store8ImmAtHL { value } => self.mmu.write(*self.registers.hl.get(), value),
             Instruction::JumpRelativeIfCarry { offset } => {
                 if self.registers.carry() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
@@ -358,11 +385,44 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
+            Instruction::LoadBFromB => {
+                *self.registers.bc.split_mut().high = *self.registers.bc.split().high
+            }
+            Instruction::LoadBFromC => {
+                *self.registers.bc.split_mut().high = *self.registers.bc.split().low
+            }
+            Instruction::LoadBFromD => {
+                *self.registers.bc.split_mut().high = *self.registers.de.split().high
+            }
+            Instruction::LoadBFromE => {
+                *self.registers.bc.split_mut().high = *self.registers.de.split().low
+            }
+            Instruction::LoadBFromH => {
+                *self.registers.bc.split_mut().high = *self.registers.hl.split().high
+            }
+            Instruction::LoadBFromL => {
+                *self.registers.bc.split_mut().high = *self.registers.hl.split().low
+            }
             Instruction::LoadBFromHL => {
                 let new_value = self.mmu.read(*self.registers.hl.get());
                 *self.registers.bc.split_mut().high = new_value;
             }
             Instruction::LoadBFromA => *self.registers.bc.split_mut().high = self.registers.a,
+            Instruction::LoadCFromB => {
+                *self.registers.bc.split_mut().low = *self.registers.bc.split().high
+            }
+            Instruction::LoadCFromC => {
+                *self.registers.bc.split_mut().low = *self.registers.bc.split().low
+            }
+            Instruction::LoadCFromD => {
+                *self.registers.bc.split_mut().low = *self.registers.de.split().high
+            }
+            Instruction::LoadCFromE => {
+                *self.registers.bc.split_mut().low = *self.registers.de.split().low
+            }
+            Instruction::LoadCFromH => {
+                *self.registers.bc.split_mut().low = *self.registers.hl.split().high
+            }
             Instruction::LoadCFromL => {
                 *self.registers.bc.split_mut().low = *self.registers.hl.split().low
             }
@@ -371,11 +431,44 @@ impl Core<'_> {
                 *self.registers.bc.split_mut().low = new_value;
             }
             Instruction::LoadCFromA => *self.registers.bc.split_mut().low = self.registers.a,
+            Instruction::LoadDFromB => {
+                *self.registers.de.split_mut().high = *self.registers.bc.split().high
+            }
+            Instruction::LoadDFromC => {
+                *self.registers.de.split_mut().high = *self.registers.bc.split().low
+            }
+            Instruction::LoadDFromD => {
+                *self.registers.de.split_mut().high = *self.registers.de.split().high
+            }
+            Instruction::LoadDFromE => {
+                *self.registers.de.split_mut().high = *self.registers.de.split().low
+            }
+            Instruction::LoadDFromH => {
+                *self.registers.de.split_mut().high = *self.registers.hl.split().high
+            }
+            Instruction::LoadDFromL => {
+                *self.registers.de.split_mut().high = *self.registers.hl.split().low
+            }
             Instruction::LoadDFromHL => {
                 let new_value = self.mmu.read(*self.registers.hl.get());
                 *self.registers.de.split_mut().high = new_value;
             }
             Instruction::LoadDFromA => *self.registers.de.split_mut().high = self.registers.a,
+            Instruction::LoadEFromB => {
+                *self.registers.de.split_mut().low = *self.registers.bc.split().high
+            }
+            Instruction::LoadEFromC => {
+                *self.registers.de.split_mut().low = *self.registers.bc.split().low
+            }
+            Instruction::LoadEFromD => {
+                *self.registers.de.split_mut().low = *self.registers.de.split().high
+            }
+            Instruction::LoadEFromE => {
+                *self.registers.de.split_mut().low = *self.registers.de.split().low
+            }
+            Instruction::LoadEFromH => {
+                *self.registers.de.split_mut().low = *self.registers.hl.split().high
+            }
             Instruction::LoadEFromL => {
                 *self.registers.de.split_mut().low = *self.registers.hl.split().low
             }
@@ -383,8 +476,45 @@ impl Core<'_> {
                 *self.registers.de.split_mut().low = self.mmu.read(*self.registers.hl.get())
             }
             Instruction::LoadEFromA => *self.registers.de.split_mut().low = self.registers.a,
+            Instruction::LoadHFromB => {
+                *self.registers.hl.split_mut().high = *self.registers.bc.split().high
+            }
+            Instruction::LoadHFromC => {
+                *self.registers.hl.split_mut().high = *self.registers.bc.split().low
+            }
             Instruction::LoadHFromD => {
                 *self.registers.hl.split_mut().high = *self.registers.de.split().high
+            }
+            Instruction::LoadHFromE => {
+                *self.registers.hl.split_mut().high = *self.registers.de.split().low
+            }
+            Instruction::LoadHFromH => {
+                *self.registers.hl.split_mut().high = *self.registers.hl.split().high
+            }
+            Instruction::LoadHFromL => {
+                *self.registers.hl.split_mut().high = *self.registers.hl.split().low
+            }
+            Instruction::LoadHFromHL => {
+                *self.registers.hl.split_mut().high = self.mmu.read(*self.registers.hl.get())
+            }
+            Instruction::LoadHFromA => *self.registers.hl.split_mut().high = self.registers.a,
+            Instruction::LoadLFromB => {
+                *self.registers.hl.split_mut().low = *self.registers.bc.split().high
+            }
+            Instruction::LoadLFromC => {
+                *self.registers.hl.split_mut().low = *self.registers.bc.split().low
+            }
+            Instruction::LoadLFromD => {
+                *self.registers.hl.split_mut().low = *self.registers.de.split().high
+            }
+            Instruction::LoadLFromE => {
+                *self.registers.hl.split_mut().low = *self.registers.de.split().low
+            }
+            Instruction::LoadLFromH => {
+                *self.registers.hl.split_mut().low = *self.registers.hl.split().high
+            }
+            Instruction::LoadLFromL => {
+                *self.registers.hl.split_mut().low = *self.registers.hl.split().low
             }
             Instruction::LoadLFromHL => {
                 *self.registers.hl.split_mut().low = self.mmu.read(*self.registers.hl.get())
@@ -402,6 +532,12 @@ impl Core<'_> {
             Instruction::StoreEAtHL => self
                 .mmu
                 .write(*self.registers.hl.get(), *self.registers.de.split().low),
+            Instruction::StoreHAtHL => self
+                .mmu
+                .write(*self.registers.hl.get(), *self.registers.hl.split().high),
+            Instruction::StoreLAtHL => self
+                .mmu
+                .write(*self.registers.hl.get(), *self.registers.hl.split().low),
             Instruction::StoreAAtHL => self.mmu.write(*self.registers.hl.get(), self.registers.a),
             Instruction::LoadAFromB => self.registers.a = *self.registers.bc.split().high,
             Instruction::LoadAFromC => self.registers.a = *self.registers.bc.split().low,
@@ -410,6 +546,7 @@ impl Core<'_> {
             Instruction::LoadAFromH => self.registers.a = *self.registers.hl.split().high,
             Instruction::LoadAFromL => self.registers.a = *self.registers.hl.split().low,
             Instruction::LoadAFromHL => self.registers.a = self.mmu.read(*self.registers.hl.get()),
+            Instruction::LoadAFromA => self.registers.a = self.registers.a,
             Instruction::XorCWithA => {
                 self.registers.a ^= self.registers.bc.split().low;
                 self.registers.set_zero(self.registers.a == 0);
@@ -527,16 +664,6 @@ impl Core<'_> {
                     self.registers.pc = address;
                 }
             }
-            Instruction::LoadHFromL => {
-                *self.registers.hl.split_mut().high = *self.registers.hl.split().low
-            }
-            Instruction::LoadHFromHL => {
-                *self.registers.hl.split_mut().high = self.mmu.read(*self.registers.hl.get())
-            }
-            Instruction::LoadHFromA => *self.registers.hl.split_mut().high = self.registers.a,
-            Instruction::LoadLFromE => {
-                *self.registers.hl.split_mut().low = *self.registers.de.split().low
-            }
             Instruction::PushBC => {
                 self.registers.sp -= 2;
                 self.mmu
@@ -575,13 +702,16 @@ impl Core<'_> {
                 self.registers.pc = address;
             }
             Instruction::AddWithCarryAWith8Imm { value } => {
+                let half_carry1 = is_half_carry(self.registers.a, value);
                 let (res, carry1) = self.registers.a.overflowing_add(value);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
                 let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
                 let carry = carry1 || carry2;
                 self.registers.a = res;
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(false);
-                // self.registers.set_half_carry(carry);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
             Instruction::ReturnIfNotCarry => {
@@ -605,11 +735,12 @@ impl Core<'_> {
                     .write_u16(self.registers.sp, *self.registers.de.get());
             }
             Instruction::SubtractAWith8Imm { value } => {
+                let half_carry = is_half_carry_sub(self.registers.a, value);
                 let (res, carry) = self.registers.a.overflowing_sub(value);
                 self.registers.a = res;
                 self.registers.set_zero(res == 0);
                 self.registers.set_subtraction(true);
-                // self.registers.set_half_carry(carry);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
             Instruction::ReturnIfCarry => {
@@ -622,6 +753,19 @@ impl Core<'_> {
                 if self.registers.carry() {
                     self.registers.pc = address;
                 }
+            }
+            Instruction::SubtractWithCarryAWith8Imm { value } => {
+                let half_carry1 = is_half_carry_sub(self.registers.a, value);
+                let (res, carry1) = self.registers.a.overflowing_sub(value);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
             }
             Instruction::OutputAToPort { address } => {
                 let address = 0xFF00 + u16::from(address);
@@ -727,8 +871,9 @@ impl Core<'_> {
                 let (intermediate, overflow) = self.registers.a.overflowing_sub(value);
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, value);
                 //TODO: Verify these flags
-                // self.registers.set_half_carry(overflow);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
         }
