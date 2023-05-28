@@ -107,7 +107,7 @@ impl Core<'_> {
             }
             Instruction::DecrementB => {
                 let c = self.registers.bc.split_mut().high;
-                let half_carry = is_half_carry(*c, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(*c, 1);
                 *c = c.wrapping_sub(1);
                 self.registers
                     .set_zero(*self.registers.bc.split().high == 0);
@@ -143,7 +143,7 @@ impl Core<'_> {
             }
             Instruction::DecrementC => {
                 let c = self.registers.bc.split_mut().low;
-                let half_carry = is_half_carry(*c, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(*c, 1);
                 *c = c.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.bc.split().low == 0);
                 self.registers.set_subtraction(true);
@@ -166,6 +166,16 @@ impl Core<'_> {
                 self.registers
                     .set_zero(*self.registers.de.split().high == 0);
                 self.registers.set_subtraction(false);
+                //TODO: Verify half carry register
+                self.registers.set_half_carry(half_carry);
+            }
+            Instruction::DecrementD => {
+                let d = self.registers.de.split_mut().high;
+                let half_carry = is_half_carry_sub(*d, 1);
+                *d = d.wrapping_sub(1);
+                self.registers
+                    .set_zero(*self.registers.de.split().high == 0);
+                self.registers.set_subtraction(true);
                 //TODO: Verify half carry register
                 self.registers.set_half_carry(half_carry);
             }
@@ -201,7 +211,7 @@ impl Core<'_> {
             }
             Instruction::DecrementE => {
                 let e = self.registers.de.split_mut().low;
-                let half_carry = is_half_carry(*e, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(*e, 1);
                 *e = e.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.de.split().low == 0);
                 self.registers.set_subtraction(true);
@@ -249,7 +259,7 @@ impl Core<'_> {
             }
             Instruction::DecrementH => {
                 let h = self.registers.hl.split_mut().high;
-                let half_carry = is_half_carry(*h, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(*h, 1);
                 *h = h.wrapping_sub(1);
                 self.registers
                     .set_zero(*self.registers.hl.split().high == 0);
@@ -312,7 +322,7 @@ impl Core<'_> {
             }
             Instruction::DecrementL => {
                 let l = self.registers.hl.split_mut().low;
-                let half_carry = is_half_carry(*l, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(*l, 1);
                 *l = l.wrapping_sub(1);
                 self.registers.set_zero(*self.registers.hl.split().low == 0);
                 self.registers.set_subtraction(true);
@@ -355,7 +365,7 @@ impl Core<'_> {
             Instruction::DecrementAtHL => {
                 let hl = *self.registers.hl.get();
                 let mem = self.mmu.read(hl);
-                let half_carry = is_half_carry(mem, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(mem, 1);
                 let res = mem.wrapping_sub(1);
                 self.mmu.write(hl, res);
                 self.registers.set_zero(res == 0);
@@ -364,6 +374,11 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
             }
             Instruction::Store8ImmAtHL { value } => self.mmu.write(*self.registers.hl.get(), value),
+            Instruction::SetCarryFlag => {
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(true);
+            }
             Instruction::JumpRelativeIfCarry { offset } => {
                 if self.registers.carry() {
                     self.registers.pc = self.registers.pc.wrapping_add_signed(i16::from(offset));
@@ -388,7 +403,7 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
             }
             Instruction::DecrementA => {
-                let half_carry = is_half_carry(self.registers.a, (-1i8) as u8);
+                let half_carry = is_half_carry_sub(self.registers.a, 1);
                 self.registers.a = self.registers.a.wrapping_sub(1);
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(true);
@@ -396,6 +411,11 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
             }
             Instruction::LoadAFrom8Imm { new_value } => self.registers.a = new_value,
+            Instruction::ComplimentCarryFlag => {
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(!self.registers.carry());
+            }
             Instruction::LoadBFromB => {
                 *self.registers.bc.split_mut().high = *self.registers.bc.split().high
             }
@@ -569,6 +589,138 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
+            Instruction::AddAWithC => {
+                let a = &mut self.registers.a;
+                let c = self.registers.bc.split_mut().low;
+                let half_carry = is_half_carry(*a, *c);
+                let (res, carry) = a.overflowing_add(*c);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithD => {
+                let a = &mut self.registers.a;
+                let d = self.registers.de.split_mut().high;
+                let half_carry = is_half_carry(*a, *d);
+                let (res, carry) = a.overflowing_add(*d);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithE => {
+                let a = &mut self.registers.a;
+                let e = self.registers.de.split_mut().low;
+                let half_carry = is_half_carry(*a, *e);
+                let (res, carry) = a.overflowing_add(*e);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithH => {
+                let a = &mut self.registers.a;
+                let h = self.registers.hl.split_mut().high;
+                let half_carry = is_half_carry(*a, *h);
+                let (res, carry) = a.overflowing_add(*h);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithL => {
+                let a = &mut self.registers.a;
+                let l = self.registers.hl.split_mut().low;
+                let half_carry = is_half_carry(*a, *l);
+                let (res, carry) = a.overflowing_add(*l);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithHL => {
+                let a = &mut self.registers.a;
+                let hl = self.mmu.read(*self.registers.hl.get());
+                let half_carry = is_half_carry(*a, hl);
+                let (res, carry) = a.overflowing_add(hl);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddAWithA => {
+                let a = &mut self.registers.a;
+                let half_carry = is_half_carry(*a, *a);
+                let (res, carry) = a.overflowing_add(*a);
+                *a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithB => {
+                let b = *self.registers.bc.split().high;
+                let half_carry1 = is_half_carry(self.registers.a, b);
+                let (res, carry1) = self.registers.a.overflowing_add(b);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithC => {
+                let c = *self.registers.bc.split().low;
+                let half_carry1 = is_half_carry(self.registers.a, c);
+                let (res, carry1) = self.registers.a.overflowing_add(c);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithD => {
+                let d = *self.registers.de.split().high;
+                let half_carry1 = is_half_carry(self.registers.a, d);
+                let (res, carry1) = self.registers.a.overflowing_add(d);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithE => {
+                let e = *self.registers.de.split().low;
+                let half_carry1 = is_half_carry(self.registers.a, e);
+                let (res, carry1) = self.registers.a.overflowing_add(e);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
             Instruction::AddWithCarryAWithH => {
                 let h = *self.registers.hl.split().high;
                 let half_carry1 = is_half_carry(self.registers.a, h);
@@ -583,6 +735,311 @@ impl Core<'_> {
                 self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(carry);
             }
+            Instruction::AddWithCarryAWithL => {
+                let l = *self.registers.hl.split().low;
+                let half_carry1 = is_half_carry(self.registers.a, l);
+                let (res, carry1) = self.registers.a.overflowing_add(l);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithHL => {
+                let hl = self.mmu.read(*self.registers.hl.get());
+                let half_carry1 = is_half_carry(self.registers.a, hl);
+                let (res, carry1) = self.registers.a.overflowing_add(hl);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AddWithCarryAWithA => {
+                let a = self.registers.a;
+                let half_carry1 = is_half_carry(self.registers.a, a);
+                let (res, carry1) = self.registers.a.overflowing_add(a);
+                let half_carry2 = is_half_carry(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_add(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithB => {
+                let b = *self.registers.bc.split().high;
+                let half_carry = is_half_carry_sub(self.registers.a, b);
+                let (res, carry) = self.registers.a.overflowing_sub(b);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithC => {
+                let c = *self.registers.bc.split().low;
+                let half_carry = is_half_carry_sub(self.registers.a, c);
+                let (res, carry) = self.registers.a.overflowing_sub(c);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithD => {
+                let d = *self.registers.de.split().high;
+                let half_carry = is_half_carry_sub(self.registers.a, d);
+                let (res, carry) = self.registers.a.overflowing_sub(d);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithE => {
+                let e = *self.registers.de.split().low;
+                let half_carry = is_half_carry_sub(self.registers.a, e);
+                let (res, carry) = self.registers.a.overflowing_sub(e);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithH => {
+                let h = *self.registers.hl.split().high;
+                let half_carry = is_half_carry_sub(self.registers.a, h);
+                let (res, carry) = self.registers.a.overflowing_sub(h);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithL => {
+                let l = *self.registers.hl.split().low;
+                let half_carry = is_half_carry_sub(self.registers.a, l);
+                let (res, carry) = self.registers.a.overflowing_sub(l);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithHL => {
+                let hl = self.mmu.read(*self.registers.hl.get());
+                let half_carry = is_half_carry_sub(self.registers.a, hl);
+                let (res, carry) = self.registers.a.overflowing_sub(hl);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractAWithA => {
+                let a = self.registers.a;
+                let half_carry = is_half_carry_sub(self.registers.a, a);
+                let (res, carry) = self.registers.a.overflowing_sub(a);
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithB => {
+                let b = *self.registers.bc.split().high;
+                let half_carry1 = is_half_carry_sub(self.registers.a, b);
+                let (res, carry1) = self.registers.a.overflowing_sub(b);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithC => {
+                let c = *self.registers.bc.split().low;
+                let half_carry1 = is_half_carry_sub(self.registers.a, c);
+                let (res, carry1) = self.registers.a.overflowing_sub(c);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithD => {
+                let d = *self.registers.de.split().high;
+                let half_carry1 = is_half_carry_sub(self.registers.a, d);
+                let (res, carry1) = self.registers.a.overflowing_sub(d);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithE => {
+                let e = *self.registers.de.split().low;
+                let half_carry1 = is_half_carry_sub(self.registers.a, e);
+                let (res, carry1) = self.registers.a.overflowing_sub(e);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithH => {
+                let h = *self.registers.hl.split().high;
+                let half_carry1 = is_half_carry_sub(self.registers.a, h);
+                let (res, carry1) = self.registers.a.overflowing_sub(h);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithL => {
+                let l = *self.registers.hl.split().low;
+                let half_carry1 = is_half_carry_sub(self.registers.a, l);
+                let (res, carry1) = self.registers.a.overflowing_sub(l);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithHL => {
+                let hl = self.mmu.read(*self.registers.hl.get());
+                let half_carry1 = is_half_carry_sub(self.registers.a, hl);
+                let (res, carry1) = self.registers.a.overflowing_sub(hl);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::SubtractWithCarryAWithA => {
+                let a = self.registers.a;
+                let half_carry1 = is_half_carry_sub(self.registers.a, a);
+                let (res, carry1) = self.registers.a.overflowing_sub(a);
+                let half_carry2 = is_half_carry_sub(res, self.registers.carry() as u8);
+                let (res, carry2) = res.overflowing_sub(self.registers.carry() as u8);
+                let half_carry = half_carry1 || half_carry2;
+                let carry = carry1 || carry2;
+                self.registers.a = res;
+                self.registers.set_zero(res == 0);
+                self.registers.set_subtraction(true);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(carry);
+            }
+            Instruction::AndAWithB => {
+                let b = *self.registers.bc.split().high;
+                self.registers.a &= b;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithC => {
+                let c = *self.registers.bc.split().low;
+                self.registers.a &= c;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithD => {
+                let d = *self.registers.de.split().high;
+                self.registers.a &= d;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithE => {
+                let e = *self.registers.de.split().low;
+                self.registers.a &= e;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithH => {
+                let h = *self.registers.hl.split().high;
+                self.registers.a &= h;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithL => {
+                let l = *self.registers.hl.split().low;
+                self.registers.a &= l;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithHL => {
+                let hl = self.mmu.read(*self.registers.hl.get());
+                self.registers.a &= hl;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::AndAWithA => {
+                let a = self.registers.a;
+                self.registers.a &= a;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(true);
+                self.registers.set_carry(false);
+            }
+            Instruction::XorBWithA => {
+                self.registers.a ^= self.registers.bc.split().high;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
             Instruction::XorCWithA => {
                 self.registers.a ^= self.registers.bc.split().low;
                 self.registers.set_zero(self.registers.a == 0);
@@ -590,8 +1047,22 @@ impl Core<'_> {
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
             }
+            Instruction::XorDWithA => {
+                self.registers.a ^= self.registers.de.split().high;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
             Instruction::XorEWithA => {
                 self.registers.a ^= self.registers.de.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::XorHWithA => {
+                self.registers.a ^= self.registers.hl.split().high;
                 self.registers.set_zero(self.registers.a == 0);
                 self.registers.set_subtraction(false);
                 self.registers.set_half_carry(false);
@@ -632,6 +1103,34 @@ impl Core<'_> {
                 self.registers.set_half_carry(false);
                 self.registers.set_carry(false);
             }
+            Instruction::OrDWithA => {
+                self.registers.a |= self.registers.de.split().high;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::OrEWithA => {
+                self.registers.a |= self.registers.de.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::OrHWithA => {
+                self.registers.a |= self.registers.hl.split().high;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
+            Instruction::OrLWithA => {
+                self.registers.a |= self.registers.hl.split().low;
+                self.registers.set_zero(self.registers.a == 0);
+                self.registers.set_subtraction(false);
+                self.registers.set_half_carry(false);
+                self.registers.set_carry(false);
+            }
             Instruction::OrHLWithA => {
                 self.registers.a |= self.mmu.read(*self.registers.hl.get());
                 self.registers.set_zero(self.registers.a == 0);
@@ -647,47 +1146,83 @@ impl Core<'_> {
                 self.registers.set_carry(false);
             }
             Instruction::CompareAWithB => {
-                let (intermediate, overflow) = self
-                    .registers
-                    .a
-                    .overflowing_sub(*self.registers.bc.split().high);
+                let b = *self.registers.bc.split().high;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(b);
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, b);
                 //TODO: Verify these flags
-                // self.registers.set_half_carry(overflow);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
             Instruction::CompareAWithC => {
-                let (intermediate, overflow) = self
-                    .registers
-                    .a
-                    .overflowing_sub(*self.registers.bc.split().low);
+                let c = *self.registers.bc.split().low;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(c);
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, c);
                 //TODO: Verify these flags
-                // self.registers.set_half_carry(overflow);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
             Instruction::CompareAWithD => {
-                let (intermediate, overflow) = self
-                    .registers
-                    .a
-                    .overflowing_sub(*self.registers.de.split().high);
+                let d = *self.registers.de.split().high;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(d);
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, d);
                 //TODO: Verify these flags
-                // self.registers.set_half_carry(overflow);
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
             Instruction::CompareAWithE => {
-                let (intermediate, overflow) = self
-                    .registers
-                    .a
-                    .overflowing_sub(*self.registers.de.split().low);
+                let e = *self.registers.de.split().low;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(e);
                 self.registers.set_zero(intermediate == 0);
                 self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, e);
                 //TODO: Verify these flags
-                // self.registers.set_half_carry(overflow);
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
+            }
+            Instruction::CompareAWithH => {
+                let h = *self.registers.hl.split().high;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(h);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, h);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
+            }
+            Instruction::CompareAWithL => {
+                let l = *self.registers.hl.split().low;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(l);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, l);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
+            }
+            Instruction::CompareAWithHL => {
+                let hl = self.mmu.read(*self.registers.hl.get());
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(hl);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, hl);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(half_carry);
+                self.registers.set_carry(overflow);
+            }
+            Instruction::CompareAWithA => {
+                let a = self.registers.a;
+                let (intermediate, overflow) = self.registers.a.overflowing_sub(a);
+                self.registers.set_zero(intermediate == 0);
+                self.registers.set_subtraction(true);
+                let half_carry = is_half_carry_sub(self.registers.a, a);
+                //TODO: Verify these flags
+                self.registers.set_half_carry(half_carry);
                 self.registers.set_carry(overflow);
             }
             Instruction::ReturnIfNotZero => {
